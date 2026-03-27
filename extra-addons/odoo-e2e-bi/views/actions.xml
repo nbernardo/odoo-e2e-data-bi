@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_e2e_bi_dashboard" model="ir.actions.client">
+        <field name="name">e2e-Data BI Dashboard</field>
+        <field name="tag">open_e2e_bi_application</field>
+    </record>
+
+    <menuitem id="menu_e2e_bi_root" name="e2e-BI" sequence="10"/>
+    <menuitem id="menu_e2e_bi_dashboard" 
+            name="Dashboard" 
+            parent="menu_e2e_bi_root" 
+            action="action_e2e_bi_dashboard" 
+            sequence="10"/>
+</odoo>
