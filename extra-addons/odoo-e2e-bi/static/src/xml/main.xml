@@ -10,7 +10,9 @@
                 </button>
             </div>
         </div> -->
-
+        <style>
+            iframe div:first { width: 100%; border: 3px solid red; }
+        </style>
         <iframe 
             src="/odoo-e2e-bi/static/src/entrypoint.html" 
             style="border: none; width: 100%; height: 100%;"

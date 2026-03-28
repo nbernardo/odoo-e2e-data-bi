@@ -11,7 +11,7 @@ export const stillRoutesMap = {
                 url: "/HomeComponent"
             },
             BIUserInterfaceComponent: {
-                path: "app/components",
+                path: "app/components/dataviz/bi",
                 url: "/biu-ser-interface"
             }
         },

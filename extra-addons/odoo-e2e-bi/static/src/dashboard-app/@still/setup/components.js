@@ -32,7 +32,8 @@ const ProduceComponentType = {
     registerCls: false,
     urlRequest: false,
     lone: false,
-    loneCntrId: null
+    loneCntrId: null,
+    templateFile: null
 };
 
 class ProducedCmpResultType {
@@ -108,6 +109,7 @@ export class Components {
     /** @returns { ProducedCmpResultType } */
     static async produceComponent(params = ProduceComponentType) {
         if (!params.cmp) return;
+        
         const { cmp, parentCmp, registerCls, urlRequest: url } = params;
         const npmRoute = parseNpmToCdn(cmp);
         let clsName = cmp, isVendorCmp = (cmp || []).at(0) == '@', cmpPath,
@@ -149,18 +151,25 @@ export class Components {
             
             const cmpCls = await import(`${cmpPath}.js`);
             const parent = parentCmp ? { parent: parentCmp } : '';
-
+            
             newInstance = new cmpCls[clsName](parent);
+            
             await newInstance.stBeforeInit();          
             Components.prevLoadingTracking.add(clsName);
             newInstance.lone = !!params.loneCntrId || params.lone;
             newInstance.loneCntrId = params.loneCntrId || Router.clickEvetCntrId;
             newInstance.$parent = parentCmp;
-
+            
             if (!newInstance.template) {
+
                 let tmplFileUrl = cmpPath + '.html';
-                const { templateUrl } = newInstance;
-                if (templateUrl) tmplFileUrl = `${folderPah}/${templateUrl}`;
+                if(params.templateFile && params.templateFile != 'undefined'){
+                    newInstance.templateUrl = `${folderPah}/`+params.templateFile;
+                    tmplFileUrl = newInstance.templateUrl;
+                }else {
+                    const { templateUrl } = newInstance;
+                    if (templateUrl) tmplFileUrl = `${folderPah}/${templateUrl}`;
+                }
 
                 const result = await fetch(tmplFileUrl);
                 if (result.status == 404) {
@@ -465,7 +474,7 @@ export class Components {
 
                     cmp.__defineSetter__(field, (val) => {
                         // This is to address the initial assignment for child component having (showIf) since ths instantiation is automatically by handleInPartsImpl
-                        if (typeof val === 'object') {
+                        if (typeof val === 'object' && val !== null) {
                             if ('v' in val) {
                                 val = val.v; delete cmp.st_flag_ini_val[field];
                             }
@@ -513,6 +522,7 @@ export class Components {
                 o.defineSetter(cmp, field);
 
                 cmp.__defineSetter__(field, (newValue) => {
+                    if(cmp['$still_' + field] === newValue) return;
                     if(cmp['stOptListFieldMap']?.get(field)?.multpl)
                         cmp['$still_' + field] = newValue;
                     cmp.__defineGetter__(field, () => newValue);
@@ -521,7 +531,7 @@ export class Components {
                     cmp['$still_' + field] = newValue;
 
                     o.defineSetter(cmp, field);
-                    setTimeout(async () => await cmp.stOnUpdate());
+                    setTimeout(async () => await cmp.stOnUpdate({ field }));
 
                     if (cmp[`$still${field}Subscribers`].length > 0) { 
                         setTimeout(() => cmp[`$still${field}Subscribers`].forEach(
@@ -1484,10 +1494,10 @@ export class Components {
 
     static parseAnnottationRE() {
         const injectOrProxyRE = /(\@Inject|\@Proxy|\@Prop|\@Controller){0,1}[\n \s \*]{0,}/;
-        const servicePathRE = /(\@Path){0,1}[\s\\/'A-Z-a-z0-9\.\@]{0,}[\n \s \*]{0,}/;
-        const commentRE = /(\@type){0,1}[\s \@ \{ \} \: \| \< \> \, A-Za-z0-9]{1,}[\* \s]{1,}\//;
+        const servicePathRE = /(\@Path){0,1}[\s\\/'A-Z-a-z0-9\.\_\@]{0,}[\n \s \*]{0,}/;
+        const commentRE = /(\@type){0,1}[\s \@ \{ \} \: \| \< \> \,\_ A-Za-z0-9]{1,}[\* \s]{1,}\//;
         const newLineRE = /[\n]{0,}/;
-        const fieldNameRE = /[\s A-Za-z0-9 \$ \# \(]{1,}/;
+        const fieldNameRE = /[\s A-Za-z0-9 \_ \$ \# \(]{1,}/;
         return injectOrProxyRE.source + servicePathRE.source + commentRE.source + newLineRE.source + fieldNameRE.source;
     }
 
@@ -1601,8 +1611,9 @@ export class Components {
             } catch (error) {}
 
             worker.postMessage({ components: this['getPrefetchList'](), vendorPath: Components.vendorPath });
-            worker.onmessage = function (r) {
-                const { path, module, cls } = r.data;
+            worker.onmessage = function (r) {                
+                let { path, module, cls, type, category } = r.data;
+                if(category === 'component') path = `${path}.${type}`;
                 if (!Components.importedMap.has(path)) {
                     Components.importedMap.add(path);
                     BaseComponent.importScript(path, module, cls);
@@ -1628,6 +1639,7 @@ export class Components {
         }
     }
 
+    static loneLoadConfig = async () =>  await Components.#loadConfig();
     static loadLoadtWorker() {
         if(!window.STILL_HOME_PREXIF || window.STILL_HOME_LOCAL){
             try {            
@@ -1693,7 +1705,7 @@ export class Components {
     static async new(cmp, data = {} | null, parentId = null) {
         let cmpName = cmp;
         if (cmp?.__proto__?.name == 'ViewComponent') cmpName = cmp.name;
-        const { newInstance: instance } = await Components.produceComponent({ cmp: cmpName });
+        const { newInstance: instance } = await Components.produceComponent({ cmp: cmpName, templateFile: data.template });
         
         if(parentId !== null) instance.$parent = Components.ref(parentId);
         
@@ -1758,10 +1770,14 @@ export class Components {
                 if (!isResizing) return;
                 const deltaX = e.clientX - startX, rszCorrect = resizeCorrectionPx;
                 const newLeftPanelWidth = leftPanelWidth + deltaX;
-
+                
                 if([true,'true'].includes(resizable)){ 
                     const rect = document.body.getBoundingClientRect();
                     const relativeX = e.clientX - rect.left;
+
+                    if((relativeX - rszCorrect) < resizeCorrectionPx)
+                        return;
+
                     [_left.style.width, _right.style.flexGrow, separator.style.marginLeft] = [`${relativeX - rszCorrect}px`, 1, `${relativeX - rszCorrect}px`];
                     if (method) (async () => await method({ leftWidth: relativeX - rszCorrect }))();
                 }
@@ -1860,7 +1876,7 @@ export class Components {
             clrStyle = 'style="border-top-color: #444; border-left-color: #444;"';
         const keyFrame = `{0% {transform:rotate(0deg);} 100% {transform:rotate(360deg);}}`;
 
-        return template.replace(/<st-loader[\n\t\s\(\)a-z0-9\!\.\=\"]{0,}[\t\n\s]{0,}[\/]{0,}>/i, (mt) => {
+        return template.replace(/<st-loader[\n\t\s\(\)a-z0-9\!\.\=\"]{0,}[\t\n\s]{0,}[\/]{0,}>/gi, (mt) => {
 
             let sheet = document.styleSheets[0], complement = mt.replace('<st-loader','').replace('>',''), lbl = '';
             let color = mt.match(/color="([\#0-9A-Z]{0,}?)"/i), topPad = mt.match(/topPadding="([\#0-9A-Z]{0,}?)"/i);
