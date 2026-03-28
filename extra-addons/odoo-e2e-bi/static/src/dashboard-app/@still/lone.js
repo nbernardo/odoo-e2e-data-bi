@@ -26,6 +26,9 @@ import { UUIDUtil } from "./util/UUIDUtil.js";
             StillAppSetup.register(Components);
             StillAppSetup.register(BaseService);
             StillAppSetup.register(ServiceEvent);
+            
+            StillAppSetup.config.props = await Components.loneLoadConfig();
+            Object.freeze(StillAppSetup.config.props);
 
             StillAppSetup.register(ComponentNotFoundException);
             /** Only for dev mode */ StillAppSetup.setDevErrorTracing();
@@ -47,7 +50,7 @@ import { UUIDUtil } from "./util/UUIDUtil.js";
                         if(!['component','id','ref'].includes(atr)) cmp[atr] = realVal;
                     }
 
-                    await cmp?.onRender();
+                    await cmp.onRender();
                     new BaseComponent().parseStTag(elm.outerHTML, '', cmp);
                     const template = cmp.getBoundTemplate(elm.id);
 

@@ -2,7 +2,7 @@ import { BehaviorComponent } from "../component/super/BehaviorComponent.js";
 import { ViewComponent } from "../component/super/ViewComponent.js";
 import { STForm } from "../component/type/ComponentType.js";
 
-class InParams {
+export class InParams {
     className; 
     id; 
     datasets = {}; 
@@ -28,7 +28,7 @@ export const FormHelper = {
 
         return {
             /** @param { InParams } params  */
-            input(params = inParams){
+            input(params){
                 if(formRef === undefined) return;
                 const {className, id, datasets = {}, type, placeholder, min, max, required, validator, warn, value, disabled} = params;
                 const datafields = Object.entries(datasets).map(([f,v]) => (`data-${f}="${v}"`)).join(' ');
@@ -38,14 +38,15 @@ export const FormHelper = {
                 const mn = `${min ? `min="${min}"` : ''}`, mx = `${max ? `max="${max}"` : ''}`;
                 const req = `${required ? ' (required)="true" ' : ''}`, wrn = `${warn ? ` (validator-warn)="${warn}"` : ''}`;
                 const checked = `${ ['checkbox','radio'].includes(type) && value === true ? `checked="true"` : "" }`;
-                const evt = ['checkbox','radio'].includes(type) ? `onclick` : `onkeyup`;
+                const evt = ['checkbox','radio'].includes(type) ? `onclick` : `oninput`;
                 
                 const validatorClass = required ? BehaviorComponent.setOnValueInput(req, cmp, fName, (formRef?.name || null)) : '';
                 const validateEvt = `${evt}="$still.c.ref('${cmp.cmpInternalId}').onValueInput(event,'${fName}',this, '${formRef.name}')"`;
                 const vlidtor = `${validator ? `(validator)=${validator}`: ''}`;
                 const cmpId = cmp.cmpInternalId?.replace('/','').replace('@','');
+
                 const input = `
-                    <input ${datafields} ${disabled ? 'disabled="true"' : ''}
+                    <input ${datafields} ${disabled ? 'disabled="true"' : ''} data-st-field-name="${fName}"
                         class="${genInputsClasses(validatorClass, cmpId, fName, val, isOptList)} ${cmp.cmpInternalId}-${fName} ${className || ''}"
                         ${ftype} ${val} ${_id} ${req.trim()} ${wrn} ${hint} ${mn} ${mx} ${validateEvt} ${vlidtor} ${checked}>
                 `;
@@ -66,8 +67,9 @@ export const FormHelper = {
     * @param { String } fName Field name */
    delField(cmp, formRef, fName){        
         delete BehaviorComponent.currentFormsValidators[cmp.cmpInternalId+'-'+formRef.name][fName];
+        delete cmp[fName];
         const inpt = document.getElementsByClassName(`listenChangeOn-${cmp.cmpInternalId}-${fName}`)[0];
-        inpt.parentElement.removeChild(inpt);
+        inpt?.parentElement?.removeChild(inpt);
     }
 }
 

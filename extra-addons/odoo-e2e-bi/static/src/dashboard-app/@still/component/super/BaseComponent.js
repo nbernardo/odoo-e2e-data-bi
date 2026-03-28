@@ -101,7 +101,7 @@ export class BaseComponent extends BehaviorComponent {
     async stOnUnload() { }
     async stOnRender() { }
     reRender() { }
-    getState = (fName) => this[fName].value;
+    getState = (fName) => (fName in this) ? this[fName].value : null;
     setDynamicField = (fName, value) => {
         this[fName] = value;
         this.#dynFields.push(fName);
@@ -117,16 +117,26 @@ export class BaseComponent extends BehaviorComponent {
     static importScripts() { }
     static importAssets() { }
     parseEvents = (content) => {
-        //This is for treeview component edge
-        if(content?.content){
-            content.content = content.content
+
+        try{
+            const controllerType = this.$cmpStController;
+
+            //This is for treeview component edge
+            if(content?.content){
+                content.content = content.content
+                    ?.replace(/controller\./g,`$still.controller('${controllerType}').`)
+                    ?.replace(/parent\.|self\./g,`$still.component.ref('${this?.$parent?.cmpInternalId}').`)
+                    ?.replace(/inner\./g,`$still.component.ref('${this?.cmpInternalId}').`)?.replace(/\$event/g,`event`);
+                return content;
+            }
+            
+            return content
+                ?.replace(/controller\./g,`$still.controller('${controllerType}').`)
                 ?.replace(/parent\.|self\./g,`$still.component.ref('${this?.$parent?.cmpInternalId}').`)
                 ?.replace(/inner\./g,`$still.component.ref('${this?.cmpInternalId}').`)?.replace(/\$event/g,`event`)
+        }catch(error){
             return content;
         }
-        return content
-            ?.replace(/parent\.|self\./g,`$still.component.ref('${this?.$parent?.cmpInternalId}').`)
-            ?.replace(/inner\./g,`$still.component.ref('${this?.cmpInternalId}').`)?.replace(/\$event/g,`event`)
     };
 
     /** @param { BaseController } controller */
@@ -1051,6 +1061,7 @@ export class BaseComponent extends BehaviorComponent {
             if ('value' in this[field]) val = this[field].value;
         }
 
+        const dataFieldId = `data-st-field-name="${field}"`;
         if(isThereComboBox){
             comboSfix = '-combobox';
             if(mt.indexOf(' multiple ') > 0) this['stOptListFieldMap'].set(field, { multpl: true });
@@ -1063,8 +1074,7 @@ export class BaseComponent extends BehaviorComponent {
 
         const /*dataField*/ dtFields = `${isThereComboBox
             ? `data-formRef="${formRef?.formRef || ''}" data-field="${field}" data-cls="${clsName}"`
-            : ''
-            }`;
+            : ''}`;
 
         if (mt.indexOf(`class="`) >= 0)
             mt = mt.replace(`class="`, `${dtFields} class="${clsList}${comboSfix} ${this.cmpInternalId}-${field} `);
@@ -1074,9 +1084,9 @@ export class BaseComponent extends BehaviorComponent {
         let replacer = `${subscrtionCls} `, complmnt = isOptList ? `name="${field}"` : `value="${val}"`;
         if(isOptList){
             if(mt.toLowerCase().indexOf('onclick="') > 0) mt = mt.replace('onclick="', '');
-            else evt = `onclick="${clsPath}.onValueInput(event,'${field}',this, '${formRef?.formRef || null}')"`;
+            else evt = `${dataFieldId} onclick="${clsPath}.onValueInput(event,'${field}',this, '${formRef?.formRef || null}')"`;
         }else
-            evt = `onkeyup="${clsPath}.onValueInput(event,'${field}',this, '${formRef?.formRef || null}')" onkeydown="${clsPath}.onValueInput(event,'${field}',this, '${formRef?.formRef || null}')"`;
+            evt = `${dataFieldId} oninput="${clsPath}.onValueInput(event,'${field}',this, '${formRef?.formRef || null}')" onkeydown="${clsPath}.onValueInput(event,'${field}',this, '${formRef?.formRef || null}')"`;
 
         if (!(isThereComboBox)) replacer = `${forEachValue} ${complmnt} ${subscrtionCls} ${evt}`;
         return { mt, replacer };
@@ -1154,7 +1164,6 @@ export class BaseComponent extends BehaviorComponent {
                 }
                 
             }
-
 
             const re = Components.parseAnnottationRE();
 

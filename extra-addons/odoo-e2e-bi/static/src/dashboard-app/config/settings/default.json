@@ -10,5 +10,11 @@
     "path": {
         "service": "",
         "controller": ""
-    }
+    },
+    "biUICssValues": {
+        "outerDivWidth": "100%;",
+        "popUpContainerWidth": "100%",
+        "tableWrapperHeight": "74vh;"
+    },
+    "runningOnOdoo": false
 }

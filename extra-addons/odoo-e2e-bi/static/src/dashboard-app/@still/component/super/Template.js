@@ -97,8 +97,8 @@ export class Template {
         window.location.reload();
     }
 
-    static showLoading() {
-        const content = Template.spinnerContent();
+    static showLoading(message = null) {
+        const content = Template.spinnerContent(message);
         document.body.insertAdjacentHTML('beforeend', content);
     }
 
@@ -110,12 +110,12 @@ export class Template {
         }, 100);
     }
 
-    static spinnerContent() {
+    static spinnerContent(message = null) {
         return `
             <div id="stllAppGlobalLoadingCurtain">
                 <div class="overlay"></div>
                 <div class="page-loader-wrapper">
-                    <div class="loader"><div class="m-t-30"></div><!-- <p>Por favor, aguarde...</p> --></div>
+                    <div class="loader"><div class="m-t-30"></div><p>${message || 'In progress...'}</p></div>
                 </div>
                 <div class="still-lds-spinner">
                     <div></div><div></div><div></div><div></div><div></div><div></div>
@@ -137,7 +137,7 @@ export class Template {
     **/
     static launchToast({ status, message, timeout } = {}) {
         const [uuid, stat] = [Template.getToastId(), status || 'Success'];
-        const msg = message || 'Operação realizada com sucesso';
+        const msg = message || 'Operation run successffuly';
         const icons = document.getElementsByClassName('toast-type-icon')[0].children;
         const statusId = ['success', 'Success'].includes(status) ? 0 
                             : ['warn', 'Warn'].includes(status) ? 2 : 1;

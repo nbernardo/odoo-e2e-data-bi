@@ -53,13 +53,13 @@ export class BehaviorComponent {
         const fieldType = inpt?.type?.toLowerCase();
         const fieldSrc = this.constructor.name == 'BehaviorComponent' ? cmp : this;
 
-        if (e?.ctrlKey || e?.metaKey) {
-            if (e?.key?.toLowerCase() === 'v'){
-                await sleepForSec(5);
-                inpt.value = await navigator.clipboard.readText();
-            }
-            else return;
-        }
+        // if (e?.ctrlKey || e?.metaKey) {
+        //     if (e?.key?.toLowerCase() === 'v'){
+        //         await sleepForSec(5);
+        //         inpt.value = await navigator.clipboard.readText();
+        //     }
+        //     else return;
+        // }
 
         if(reset){
             fieldSrc[field] = (fieldType == 'checkbox' || inpt.multiple) ? [] : '';
@@ -68,7 +68,7 @@ export class BehaviorComponent {
 
         const isOptList = ['radio','checkbox'].includes(fieldType);
         if (e && !isOptList) 
-            if (BehaviorComponent.ignrKeys.includes(e.key.toString().toLowerCase())) return;
+            if (BehaviorComponent.ignrKeys.includes(e?.key?.toString()?.toLowerCase())) return;
          
         let pattern = inpt.getAttribute('(validator)');
         let required = inpt.getAttribute('required') ? inpt.getAttribute('required') : inpt.getAttribute('(required)');
