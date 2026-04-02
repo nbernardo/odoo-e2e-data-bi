@@ -13,6 +13,10 @@ export const stillRoutesMap = {
             BIUserInterfaceComponent: {
                 path: "app/components/dataviz/bi",
                 url: "/biu-ser-interface"
+            },
+            E2eBiSettingsComponent: {
+                path: "app/components/settings",
+                url: "/e2-e-bi-settings"
             }
         },
         lazyInitial: {}

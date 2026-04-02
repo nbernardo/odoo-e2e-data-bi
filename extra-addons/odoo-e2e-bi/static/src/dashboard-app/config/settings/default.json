@@ -1,6 +1,6 @@
 {
     "httpClient": {
-        "baseUrl": ""
+        "baseUrl": "http://localhost:8000"
     },
     "logs": {
         "default": true,
@@ -16,5 +16,6 @@
         "popUpContainerWidth": "100%",
         "tableWrapperHeight": "74vh;"
     },
-    "runningOnOdoo": false
+    "runningOnOdoo": true,
+    "clientNamespace": "google-oauth2_116448449010041059402"
 }

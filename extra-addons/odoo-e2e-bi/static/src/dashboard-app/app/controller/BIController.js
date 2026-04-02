@@ -1,14 +1,19 @@
 import { BaseController } from "../../@still/component/super/service/BaseController.js";
+import { HTTPHeaders } from "../../@still/helper/http.js";
+import { StillAppSetup } from "../../config/app-setup.js";
 import { BIUserInterfaceComponent } from "../components/dataviz/bi/BIUserInterfaceComponent.js";
 import { BiUiUtil } from "../components/dataviz/bi/util.js";
+import { AIUtil } from "../util/AIUtil.js";
 
 export class BIController extends BaseController {
 
     /** @type { BIUserInterfaceComponent } */
     obj;
 
+    wasUiPreviousInited = false;
+
     renderTableList() {
-		const tables = this.obj.MOCK_TABLES[this.obj.state.pipeline] || [];
+		const tables = this.obj.analyticsRessultTables[this.obj.state.pipeline] || [];
 		this.obj.popup.querySelector(".tableList").innerHTML = tables
 			.map((t) =>
 				this.obj.parseEvents(
@@ -23,7 +28,7 @@ export class BIController extends BaseController {
 
     loadTable(name) {
         this.obj.state.activeTable = name;
-        this.obj.state.filteredRows = [...this.obj.MOCK_DATA];
+        this.obj.state.filteredRows = [...this.obj.gridDataSource];
         this.obj.state.selectedRows.clear();
         this.renderTableList();
         this.renderSheet();
@@ -116,7 +121,7 @@ export class BIController extends BaseController {
         if (!name) return;
 
         // To preserve visual order in the object keys:
-        this.obj.MOCK_DATA = this.obj.MOCK_DATA.map(row => {
+        this.obj.gridDataSource = this.obj.gridDataSource.map(row => {
             const keys = Object.keys(row);
             const newRow = {};
             keys.forEach((key, idx) => {
@@ -143,7 +148,7 @@ export class BIController extends BaseController {
         const name = prompt("Enter new column name:");
         if (!name) return;
 
-        this.obj.MOCK_DATA.forEach((row) => (row[name] = "-"));
+        this.obj.gridDataSource.forEach((row) => (row[name] = "-"));
 
         this.loadTable(this.obj.state.activeTable);
         
@@ -155,7 +160,7 @@ export class BIController extends BaseController {
         const col = this.obj.popup.querySelectorAll('#colFilter').value;
         const lq = q.toLowerCase();
 
-        this.obj.state.filteredRows = this.obj.MOCK_DATA.filter((row) => {
+        this.obj.state.filteredRows = this.obj.gridDataSource.filter((row) => {
             if (!q) return true;
             if (col)
                 return String(row[col] ?? "").toLowerCase().includes(lq);
@@ -253,8 +258,8 @@ export class BIController extends BaseController {
 
     populateAxisSelects() {
 
-        const { MOCK_DATA } = this.obj;
-        const cols = MOCK_DATA.length ? Object.keys(MOCK_DATA[0]) : [];
+        const { gridDataSource } = this.obj;
+        const cols = gridDataSource.length ? Object.keys(gridDataSource[0]) : [];
         const opts = cols.map((c) => `<option value="${c}">${c}</option>`).join("");
 
         this.obj.popup.querySelector('#xAxisSelect').innerHTML = opts;
@@ -357,34 +362,36 @@ export class BIController extends BaseController {
 	handleDragStart = (e, index) => e.dataTransfer.setData('chartIdx', index);
 
     initDragAndDrop() {
-        const { state } = this.obj;
-        const grid = this.obj.popup.querySelector('.dashGrid');
-        const self = this;
-        
-        grid.addEventListener('dragover', e => { 
-            e.preventDefault(); 
-            grid.classList.add('drag-over'); 
-        });
-        
-        grid.addEventListener('dragleave', () => { 
-            grid.classList.remove('drag-over'); 
-        });
-        
-        grid.addEventListener('drop', e => {
-            e.preventDefault();
-            grid.classList.remove('drag-over');
+        if(this.wasUiPreviousInited === false){
+            this.wasUiPreviousInited = true;
+            const { state } = this.obj;
+            const grid = this.obj.popup.querySelector('.dashGrid');
             
-            const idx = e.dataTransfer.getData('chartIdx');
-            if (idx !== "") {
-                const chartData = state.savedCharts[parseInt(idx)];
-                if (chartData) {
-                    if (!state.dashboards[state.activeDash]) state.dashboards[state.activeDash] = [];
-                    state.dashboards[state.activeDash].push({...chartData, instanceId: Date.now()});
-                    this.loadDashboard(state.activeDash);
-                    this.showToast(`Added ${chartData.title} to dashboard`);
+            grid.addEventListener('dragover', e => { 
+                e.preventDefault(); 
+                grid.classList.add('drag-over'); 
+            });
+            
+            grid.addEventListener('dragleave', () => { 
+                grid.classList.remove('drag-over');
+            });
+            
+            grid.addEventListener('drop', e => {
+                e.preventDefault();
+                grid.classList.remove('drag-over');
+                
+                const idx = e.dataTransfer.getData('chartIdx');
+                if (idx !== "") {
+                    const chartData = state.savedCharts[parseInt(idx)];
+                    if (chartData) {
+                        if (!state.dashboards[state.activeDash]) state.dashboards[state.activeDash] = [];
+                        state.dashboards[state.activeDash].push({...chartData, instanceId: Date.now()});
+                        this.loadDashboard(state.activeDash);
+                        this.showToast(`Added ${chartData.title} to dashboard`);
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     loadDashboard(name) {
@@ -474,7 +481,7 @@ export class BIController extends BaseController {
 
 	onPipelineChange(val) {
 		this.obj.state.pipeline = val;
-		const tables = this.obj.MOCK_TABLES[val] || [];
+		const tables = this.obj.analyticsRessultTables[val] || [];
 		this.obj.state.activeTable = tables[0]?.name || "";
 		this.renderTableList();
 		this.loadTable(this.obj.state.activeTable);
@@ -530,12 +537,82 @@ export class BIController extends BaseController {
         if (!colName) return;
         const { state } = this.obj;
         if (confirm(`Permanent action: Are you sure you want to delete the column "${colName}"?`)) {
-            this.obj.MOCK_DATA.forEach(row => delete row[colName]);
+            this.obj.gridDataSource.forEach(row => delete row[colName]);
             if (state.sortCol === colName) state.sortCol = null;
             if (state.frozenCols.has(colName)) state.frozenCols.delete(colName);
             this.loadTable(state.activeTable);
             this.showToast(`Column "${colName}" removed`);
         }
+    }
+
+    shrinkChatLogs(elm, unshrink){
+        const hasFirstMessage = this.obj.popup.querySelector('.message-bubble')
+        if(hasFirstMessage) this.obj.popup.querySelector('.message-bubble').style.visibility = 'hidden';
+
+        if(elm?.title == this.obj.analyticsChatStateEnum.OPENED || unshrink){
+            elm.title = this.obj.analyticsChatStateEnum.CLOSED, elm.innerHTML = '&ndash;';
+            this.obj.popup.querySelector('.ai-analytics-chat-logs').style.width = '35%';
+            this.obj.popup.querySelector('.ai-analytics-chat-logs').style.height = '270px';
+            this.obj.popup.querySelector('.ai-analytics-chat-logs').style.overflowY = 'scroll';
+            if(hasFirstMessage) this.obj.popup.querySelector('.message-bubble').style.visibility = 'visible';
+            
+        }else{
+            if(elm?.title)
+                elm.title = this.obj.analyticsChatStateEnum.OPENED, elm.innerHTML = '&plus;';
+            this.obj.popup.querySelector('.ai-analytics-chat-logs').style.width = '25px';
+            this.obj.popup.querySelector('.ai-analytics-chat-logs').style.height = '25px';
+            this.obj.popup.querySelector('.ai-analytics-chat-logs').style.overflow = 'hidden';
+            if(hasFirstMessage) this.obj.popup.querySelector('.message-bubble').style.visibility = 'hidden';
+        }
+    }
+
+    analyticsQuery = '';
+    async submitAIAnalyticsQuery(e){        
+        if(e.key === 'Enter'){
+
+            AIUtil.aiAgentFlow = AIUtil.AgentFlowType.ANALYTICS;
+            let mainContainer = this.obj.popup.querySelector('.ai-analytics-chat-logs'), content;
+            
+            this.createMessageBubble(this.analyticsQuery, 'user', mainContainer);
+            this.shrinkChatLogs(this.obj.popup.querySelector('.minimize-analytics-log'), true);
+
+            this.createMessageBubble(AIUtil.loadingContent(), 'agent', mainContainer);
+
+            let { result, error } = await this.sendDataQueryAgentMessage(this.analyticsQuery);
+
+            if((result?.result || '').includes('CLARIFY:') || result?.answer == 'schema-clarification') content = result.result;
+            else if(result?.result == '[]') content = 'Your request didn\'t match any of existing data';
+            else content = error ? `${result?.result}` : 'Result rendered in the Data visualization'
+            
+            AIUtil.setAgentLastMessage(content, null, false, mainContainer);
+
+            this.obj.setData(error ? [] : JSON.parse(result?.result)).init();
+            AIUtil.aiAgentFlow = null;
+
+        }
+        this.analyticsQuery = e.target.value;
+    }
+
+	createMessageBubble(text, role, mainContainer) {
+		AIUtil.createMessageBubble(text, role, null, mainContainer);
+		AIUtil.scrollToBottom(false, mainContainer);
+	}
+
+    /** @returns { { result: { result } } } */
+    async sendDataQueryAgentMessage(message) {
+        let agentFlow = AIUtil.aiAgentFlow, namespace = StillAppSetup.config.get('clientNamespace');
+
+        if(!this.obj.runningOnOdoo){
+            const { UserUtil } = await import('../components/auth/UserUtil.js');
+            const { UserService } = await  import('../services/UserService.js');
+            namespace = StillAppSetup.config.get('anonymousLogin') ? UserUtil.email : await UserService.getNamespace();
+        }
+
+        const url = '/workcpace/agent/' + namespace;
+        const response = await $still.HTTPClient.post(url, JSON.stringify({ message, agentFlow }), HTTPHeaders.JSON);
+        if (response.ok && !response.error)
+            return await response.json();
+        return null;
     }
     
 }

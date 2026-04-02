@@ -1,17 +1,9 @@
 /** @odoo-module **/
 
 import { registry } from "@web/core/registry";
-const { Component, useState } = owl;
+const { Component } = owl;
 
-export class Main extends Component {
-    setup() {
-        this.state = useState({ counter: 0 });
-    }
-
-    increment() {
-        this.state.counter++;
-    }
-}
+export class Main extends Component {}
 
 Main.template = "odoo-e2e-bi.Main";
 

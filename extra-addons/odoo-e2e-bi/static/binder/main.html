@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+    <meta content="width=device-width, initial-scale=1" name="viewport" />
+    <title>StillJS</title>
+    <!-- Bellow (STILL_HOME) is the Still env variable to inform where to look for components -->
+    <script> STILL_HOME = 'odoo-e2e-bi/static/src/dashboard-app/' </script>
+    
+    <link href="/odoo-e2e-bi/static/src/dashboard-app/@still/ui/css/still.css" rel="stylesheet">
+    <script src="/odoo-e2e-bi/static/src/dashboard-app/@still/lone.js" type="module"></script>
+</head>
+
+<body>
+    <div>
+        <!-- 
+            Bellow component is paced in the following path:
+                static/src/dashboard-app/app/components/dataviz/BIUserInterfaceComponent.js
+        -->
+        <st-element component="BIUserInterfaceComponent"></st-element>
+    </div>
+
+</body>

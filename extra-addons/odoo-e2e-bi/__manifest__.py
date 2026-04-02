@@ -14,7 +14,8 @@
         'web.assets_backend': [
             'odoo-e2e-bi/static/src/js/main.js',
             'odoo-e2e-bi/static/src/xml/main.xml',
-            'odoo-e2e-bi/static/src/dashboard-app/app/assets/css/bi-user-intercace-component.css'
+            'odoo-e2e-bi/static/src/js/settings.js',
+            'odoo-e2e-bi/static/src/xml/settings.xml',
         ],
     },
 }
