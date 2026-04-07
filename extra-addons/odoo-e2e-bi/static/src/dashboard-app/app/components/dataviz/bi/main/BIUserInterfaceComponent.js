@@ -34,6 +34,8 @@ export class BIUserInterfaceComponent extends ModalWindowComponent {
 
 	/**  @Prop  */ showTablesList = true;
 
+	domainPipelinesList = [];
+
  	/** @Prop */
 	state = {
 		pipeline:'p1', activeTable:'HumanResources_Employee',
@@ -62,6 +64,13 @@ export class BIUserInterfaceComponent extends ModalWindowComponent {
 
 	async stBeforeInit(){
 		this.runningOnOdoo = StillAppSetup.config.get('runningOnOdoo');
+		setTimeout(async () => {
+			let result = await BIController.getDomainPipelines();
+			
+			if(result?.error === false)
+				this.domainPipelinesList = result.result.map(([pp, dbName]) => ({ name: this.toCamel(pp).trim(), pipeline: `${dbName}.${pp}` }));
+			
+		}, 0);
 	}
 
 	async stOnRender(){
@@ -114,7 +123,7 @@ export class BIUserInterfaceComponent extends ModalWindowComponent {
 	}
 
 	init() {
-		this.controller.renderTableList();
+		//this.controller.renderTableList();
 		this.controller.renderChartTypeGrid();
 		this.controller.renderColorRow();
 		this.controller.loadTable(this.state.activeTable);
@@ -129,5 +138,8 @@ export class BIUserInterfaceComponent extends ModalWindowComponent {
 		this.init();
 		this.showPopup();
 	}
+
+	// TODO: Move to a kind of string util
+	toCamel = (str) => String(str).replace(/(^|_)([a-z0-9])/g, (_1, _2, group2) => ' '+group2.toUpperCase());;
 
 }
