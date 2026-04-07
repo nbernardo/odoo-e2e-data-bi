@@ -1,12 +1,13 @@
-import { Assets } from "../../../../@still/util/componentUtil.js";
-import { UUIDUtil } from "../../../../@still/util/UUIDUtil.js";
-import { StillAppSetup } from "../../../../config/app-setup.js";
-import { BIChatController } from "../../../controller/BIChatController.js";
-import { BIController } from "../../../controller/BIController.js";
-import { ModalWindowComponent } from "../../abstract/ModalWindowComponent.js";
-import { PopupUtil } from "../../popup-window/PopupUtil.js";
-import { mockDataTables, mockDepartments, mockTitles } from "./mock.js";
-import { BiUiUtil } from "./util.js";
+import { Assets } from "../../../../../@still/util/componentUtil.js";
+import { UUIDUtil } from "../../../../../@still/util/UUIDUtil.js";
+import { StillAppSetup } from "../../../../../config/app-setup.js";
+import { BIChatController } from "../../../../controller/BIChatController.js";
+import { BIController } from "../../../../controller/BIController.js";
+import { ModalWindowComponent } from "../../../abstract/ModalWindowComponent.js";
+import { PopupUtil } from "../../../popup-window/PopupUtil.js";
+import { mockDataTables, mockDepartments, mockTitles } from "../mock.js";
+import { PivotCreateComponent } from "../pivot/PivotCreateComponent.js";
+import { BiUiUtil } from "../util.js";
 
 
 export class BIUserInterfaceComponent extends ModalWindowComponent {
@@ -31,19 +32,23 @@ export class BIUserInterfaceComponent extends ModalWindowComponent {
 
 	/**  @Prop  */ runningOnOdoo = false;
 
+	/**  @Prop  */ showTablesList = true;
+
  	/** @Prop */
 	state = {
 		pipeline:'p1', activeTable:'HumanResources_Employee',
 		filteredRows:[], selectedRows:new Set(),
 		sortCol:null, sortDir:'asc',
 		chartType:'bar', chartColor: BiUiUtil.chartColors[0],
-		chartInstance:null, savedCharts:[],
+		chartInstance:null, savedCharts: {},
 		dashboards:{'Main Dashboard':[],'Sales Overview':[]},
 		activeDash:'Main Dashboard', pendingChart:null,
 		frozenCols: new Set(), activeInsertIndex: -1
 	};
  	
 	/** @Prop */ gridDataSource = null;
+
+	/** @Proxy @type { PivotCreateComponent } */ pivotTableProxy = null;
 
 	/** @Prop */ analyticsChatStateEnum = { OPENED: 'Expanded', CLOSED: 'Minimized' };
 
@@ -75,17 +80,26 @@ export class BIUserInterfaceComponent extends ModalWindowComponent {
 		this.setOnMouseMoveContainer();
 		this.setOnPopupResize();
 		this.util = new PopupUtil();
-		this.gridDataSource = []//this.genData();
+
 		this.controller.on('load', () => {
 			this.controller.obj = this;
 			setTimeout(this.controller.shrinkChatLogs(), 500);
+			setTimeout(this.setData(this.genData()).init(), 500);
 		});
+		
 		this.chatController = new BIChatController(this.popup);
 		if(this.runningOnOdoo){
 			this.showPopup();
 			this.init();
 		}
   	}
+	// Mock data for testing
+	genData(){
+		return [];
+		const { TITLES, DEPTS } = this;
+		const r=[];for(let i=1;i<=290;i++)r.push({BusinessEntityID:i,NationalIDNumber:String(Math.floor(Math.random()*900000000+100000000)),JobTitle:TITLES[i%TITLES.length]+' - '+DEPTS[i%DEPTS.length],Department:DEPTS[i%DEPTS.length],HireDate:new Date(2005+(i%15),i%12,(i%28)+1).toISOString().split('T')[0],VacationHours:Math.floor(Math.random()*99),SickLeaveHours:Math.floor(Math.random()*69),SalariedFlag:i%3===0?0:1,Gender:i%2===0?'M':'F',MaritalStatus:i%3===0?'S':'M'});
+		return r;
+	}
 
   	showToast(msg, type='default') {
 		const t = document.getElementById('toast');
@@ -97,25 +111,6 @@ export class BIUserInterfaceComponent extends ModalWindowComponent {
 	setData = (dataSource) => {
 		this.gridDataSource = dataSource;
 		return this;
-	}
-
-	genData() {
-		// const r = [];
-		// // This is generating a mock data
-		// for (let i = 1; i <= 290; i++)
-		// 	r.push({
-		// 		'BusinessEntityID': i,
-		// 		NationalIDNumber: String(Math.floor(Math.random() * 900000000 + 100000000)),
-		// 		JobTitle: this.TITLES[i % this.TITLES.length] + " - " + this.DEPTS[i % this.DEPTS.length],
-		// 		Department: this.DEPTS[i % this.DEPTS.length],
-		// 		HireDate: new Date(2005 + (i % 15), i % 12, (i % 28) + 1).toISOString().split("T")[0],
-		// 		VacationHours: Math.floor(Math.random() * 99),
-		// 		SickLeaveHours: Math.floor(Math.random() * 69),
-		// 		SalariedFlag: i % 3 === 0 ? 0 : 1,
-		// 		Gender: i % 2 === 0 ? "M" : "F",
-		// 		MaritalStatus: i % 3 === 0 ? "S" : "M",
-		// 	});
-		return r;
 	}
 
 	init() {

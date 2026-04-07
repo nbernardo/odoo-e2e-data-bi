@@ -29,4 +29,23 @@
               parent="menu_e2e_bi_menu_group" 
               action="action_e2e_bi_dashboard" 
               sequence="10"/>
+
+
+
+    <!-- Add a new group section in the Dashboards sidebar -->
+    <menuitem
+        id="menu_board_e2e_group"
+        name="Analytics"
+        parent="spreadsheet_dashboard.spreadsheet_dashboard_menu_root"
+        sequence="30"
+    />
+
+    <!-- Point to your already-existing action -->
+    <menuitem
+        id="menu_board_e2e_dashboard"
+        name="e2e-Data BI Dashboard"
+        parent="menu_board_e2e_group"
+        action="action_e2e_bi_dashboard"
+        sequence="10"
+    />        
 </odoo>

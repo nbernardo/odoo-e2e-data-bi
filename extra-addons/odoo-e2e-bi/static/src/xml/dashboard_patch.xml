@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+    <t t-name="spreadsheet_dashboard.DashboardAction" owl="1" t-inherit="spreadsheet_dashboard.DashboardAction" t-inherit-mode="extension">
+        <xpath expr="//li[hasclass('o_search_panel_category_value')]" position="attributes">
+            <attribute name="t-att-class">{'active': dashboard.id === (state.activeDashboard and state.activeDashboard.id)}</attribute>
+        </xpath>
+    </t>
+</templates>

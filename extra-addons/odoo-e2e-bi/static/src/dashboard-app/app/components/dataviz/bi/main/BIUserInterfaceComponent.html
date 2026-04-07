@@ -8,6 +8,7 @@
 	.this-is-the-bi-view .tab-sheet, .this-is-the-bi-view .tab-chart, .this-is-the-bi-view .tab-dashboard { padding-top: 8px; }
 	.this-is-the-bi-view { .topbar { height: 67px; } .sidebar { height: 90.8vh; margin-top: 14px; } }
 	.minimize-analytics-log { right: 20px; margin-top: -49px; }
+	.this-is-the-bi-view .gragable-field-list { height: 280px; }
 
 	/** Dot Mini Loader */
 	.mini-loader-container { width: 13px; height: 13px; display: flex; align-items: center; justify-content: center; gap: 2px; }
@@ -87,13 +88,27 @@
 
 						<aside class="sidebar">
 							<div class="sidebar-section">
-							<div class="sidebar-title">Tables</div>
-							<div class="tableList"></div>
+							<span (showIf)="self.showTablesList">
+								<div class="sidebar-title">Tables</div>
+								<div class="tableList"></div>
+							</span>
+							<span (showIf)="!self.showTablesList">
+								<aside class="sidebar gragable-field-list" style="padding: 0;">
+									<div class="sidebar-section" style="padding: 0 !important;">
+										<h3>Dataset Fields</h3>
+										<button onclick="event.stopPropagation(); document.getElementById('calc-modal').style.display='block'" style="width:100%; padding:8px; cursor:pointer; cursor: pointer; margin: 3px auto;">+ Add Formula</button>
+										<div id="source-fields" style="max-height: 200px; overflow-y: auto; padding-top: 6px;" onscroll="controller.checkScroll(this)"></div>
+										<div id="field-scroll-arrow" class="scroll-indicator">↓</div>
+									</div>
+								</aside>
+							</span>
 							</div>
 							<div class="sidebar-sep"></div>
 							<div class="sidebar-section">
 							<div class="sidebar-title">Saved Charts</div>
 							<div class="chartList"></div>
+							<div class="sidebar-title">Saved Pivots</div>
+							<div class="saved-pivots"></div>
 							</div>
 						</aside>
 
@@ -101,6 +116,7 @@
 							<nav class="tabs">
 								<div class="tab active" onclick="controller.switchTab('sheet',this)">Spreadsheet</div>
 								<div class="tab" onclick="controller.switchTab('chart',this)">Chart Builder</div>
+								<div class="tab" onclick="controller.switchTab('pivot',this)">Pivot</div>
 								<div class="tab" onclick="controller.switchTab('dashboard',this)">Dashboard</div>
 								<span>
 									<button class="btn btn-accent" id="btnPublish" style="width: 171px; flex: 2; position: absolute; right: 32px; margin-top: -14px;" onclick="controller.openPublishModal()">
@@ -110,17 +126,17 @@
 							</nav>
 
 							<div class="content active tab-sheet">
-							<div class="sheet-toolbar">
-								<div class="search-wrap"><input class="search-input" id="searchInput" placeholder="Search..." oninput="controller.filterRows(this.value)"></div>
-								<select class="field-select" style="width:auto" id="colFilter" onchange="controller.filterRows(document.getElementById('searchInput').value)"><option value="">All columns</option></select>
-								<button class="btn btn-ghost" onclick="controller.addColumn()" style="width: 87px;">+ Add Col</button>
-								<div class="topbar-actions" style="width: 301px;padding-left: 8px;">
-									<button class="btn btn-ghost" style="width: 290px;flex: 1.2;" onclick="controller.exportCSV()">↓ Export CSV</button>
-								</div>
-								<div class="stats-row">
-								<div class="stat-chip">Rows: <span id="rowCount">0</span></div>
-								<div class="stat-chip">Cols: <span id="colCount">0</span></div>
-								<div class="stat-chip">Selected: <span id="selCount">0</span></div>
+								<div class="sheet-toolbar">
+									<div class="search-wrap"><input class="search-input" id="searchInput" placeholder="Search..." oninput="controller.filterRows(this.value)"></div>
+									<select class="field-select" style="width:auto" id="colFilter" onchange="controller.filterRows(document.getElementById('searchInput').value)"><option value="">All columns</option></select>
+									<button class="btn btn-ghost" onclick="controller.addColumn()" style="width: 87px;">+ Add Col</button>
+									<div class="topbar-actions" style="width: 301px;padding-left: 8px;">
+										<button class="btn btn-ghost" style="width: 110px;" onclick="controller.exportCSV()">↓ Export CSV</button>
+									</div>
+									<div class="stats-row">
+									<div class="stat-chip">Rows: <span id="rowCount">0</span></div>
+									<div class="stat-chip">Cols: <span id="colCount">0</span></div>
+									<div class="stat-chip">Selected: <span id="selCount">0</span></div>
 								</div>
 							</div>
 							<div class="table-wrap tableContainer">
@@ -131,62 +147,66 @@
 
 							<div class="content tab-chart">
 								<div class="chart-builder">
-								<div class="chart-config">
-									<div>
-									<div class="config-section-title">Chart Type</div>
-									<div class="chart-type-grid chartTypeGrid"></div>
-									</div>
-									<div>
-									<div class="config-section-title">Data</div>
-									<label class="field-label">X Axis / Labels</label>
-									<select class="field-select" id="xAxisSelect"></select>
-									<label class="field-label" style="margin-top:10px;">Y Axis / Values</label>
-									<select class="field-select" id="yAxisSelect"></select>
-									<label class="field-label" style="margin-top:10px;">Aggregation</label>
-									<select class="field-select" id="aggSelect">
-										<option value="none">None (raw values)</option>
-										<option value="count">Count</option>
-										<option value="sum">Sum</option>
-										<option value="avg">Average</option>
-										<option value="max">Max</option>
-										<option value="min">Min</option>
-									</select>
-									</div>
-								</div>
-								<div class="chart-preview">
-									<div class="chart-preview-header">
+									<div class="chart-config">
 										<div>
-											<div class="chart-preview-title" id="previewTitle">Chart Preview</div>
+											<div class="config-section-title">Chart Type</div>
+											<div class="chart-type-grid chartTypeGrid"></div>
+										</div>
+										<div>
+											<div class="config-section-title">Data</div>
+											<label class="field-label">X Axis / Labels</label>
+											<select class="field-select" id="xAxisSelect"></select>
+											<label class="field-label" style="margin-top:10px;">Y Axis / Values</label>
+											<select class="field-select" id="yAxisSelect"></select>
+											<label class="field-label" style="margin-top:10px;">Aggregation</label>
+											<select class="field-select" id="aggSelect">
+												<option value="none">None (raw values)</option>
+												<option value="count">Count</option>
+												<option value="sum">Sum</option>
+												<option value="avg">Average</option>
+												<option value="max">Max</option>
+												<option value="min">Min</option>
+											</select>
+										</div>
+									</div>
+									<div class="chart-preview">
+										<div class="chart-preview-header">
 											<div>
-												<div class="chart-style-config-wrapper" style="display: flex; gap: 10px;">
-													<div>
-														<label class="field-label">Chart Title</label>
-														<input class="chart-title-input chartTitleInput" placeholder="Chart title..." value="My Chart">
-													</div>
-													<div>
-														<label class="field-label">Color</label>
-														<div class="color-row" id="colorRow"></div>
+												<div class="chart-preview-title" id="previewTitle">Chart Preview</div>
+												<div>
+													<div class="chart-style-config-wrapper" style="display: flex; gap: 10px;">
+														<div>
+															<label class="field-label">Chart Title</label>
+															<input class="chart-title-input chartTitleInput" placeholder="Chart title..." value="My Chart">
+														</div>
+														<div>
+															<label class="field-label">Color</label>
+															<div class="color-row" id="colorRow"></div>
+														</div>
 													</div>
 												</div>
 											</div>
+											<div style="display: flex; gap: 6px;">
+												<button class="btn btn-ghost" style="width: 90px;" onclick="controller.buildChart()">↺ Preview</button>
+												<!-- <button class="btn btn-primary" style="width: 95px" onclick="controller.buildChart()">Build Chart</button> -->
+												<button class="btn btn-ghost" style="width: 95px" onclick="controller.saveChart()">Save Chart</button>
+											</div>
 										</div>
-										<div style="display: flex; gap: 6px;">
-											<button class="btn btn-ghost" style="width: 90px;" onclick="controller.buildChart()">↺ Preview</button>
-											<!-- <button class="btn btn-primary" style="width: 95px" onclick="controller.buildChart()">Build Chart</button> -->
-											<button class="btn btn-ghost" style="width: 95px" onclick="controller.saveChart()">Save Chart</button>
-										</div>
+										<div class="chart-canvas-wrap"><canvas id="chartCanvas"></canvas></div>
 									</div>
-									<div class="chart-canvas-wrap"><canvas id="chartCanvas"></canvas></div>
-								</div>
 								</div>
 							</div>
 
-							<div class="content tab-dashboard">
-							<div class="dashboard-toolbar">
-								<select class="field-select dashSelect" style="width:220px;" onchange="loadDashboard(this.value)"></select>
-								<button class="btn btn-ghost" style="width: 135px;" onclick="controller.newDashboard()">+ New Dashboard</button>
+							<div class="content tab-pivot">
+								<st-element component="PivotCreateComponent" proxy="pivotTableProxy" @delayed="2.1s"></st-element>
 							</div>
-							<div class="dashboard-grid dashGrid"></div>
+
+							<div class="content tab-dashboard">
+								<div class="dashboard-toolbar">
+									<select class="field-select dashSelect" style="width:220px;" onchange="controller.loadDashboard(this.value)"></select>
+									<button class="btn btn-ghost" style="width: 135px;" onclick="controller.newDashboard()">+ New Dashboard</button>
+								</div>
+								<div class="dashboard-grid dashGrid"></div>
 							</div>
 						</main>
 					</div>
