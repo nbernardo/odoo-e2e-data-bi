@@ -1,12 +1,16 @@
 import { BaseController } from "../../@still/component/super/service/BaseController.js";
 import { PivotCreateComponent } from "../components/dataviz/bi/pivot/PivotCreateComponent.js";
+import { BIService } from "../services/BIService.js";
+import { BIController } from "./BIController.js";
 
 export class PivotTableController extends BaseController {
 
     /** @type { PivotCreateComponent } */
     obj;
 
-    static totalSavePivot = 0;
+    customGlobalFilters = {};
+
+    static totalSavePivot = Date.now() + Math.random().toString().slice(2);
     static currentPivotId;
 
     allowDrop(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
@@ -21,9 +25,9 @@ export class PivotTableController extends BaseController {
 
     clearDrag(e) { e.currentTarget.classList.remove('drag-over'); }
 
-    renderAll() {
-        const container = this.obj.$parent.popup.querySelector('#table-canvas');
-        const showAllRows = this.obj.container.querySelector('#show-all-rows-check').checked;
+    renderAll(customGlobalFilters = {}) {
+        const container = this.obj.$parent.popup.querySelector('#table-canvas');        
+        const showAllRows = this.obj.container.querySelector('#show-all-rows-check')?.checked;
 		const { selection, filters, parseEvents } = this.obj;
 
         ['rows', 'cols', 'vals'].forEach(id => {
@@ -50,7 +54,7 @@ export class PivotTableController extends BaseController {
 
         requestAnimationFrame(() => {
             setTimeout(() => {
-                const { root, cols } = this.buildTree(selection, filters, showAllRows);
+                const { root, cols } = this.buildTree(selection, filters, showAllRows, customGlobalFilters);
                 const heatmapCheck = this.obj.container.querySelector('#heatmap-check').checked;
                 const htmlString = this.getTableHTML(root, cols, selection, heatmapCheck);
                 this.updateTableDOM(container, htmlString); 
@@ -63,12 +67,24 @@ export class PivotTableController extends BaseController {
     openFilter(e, f) {
         e.stopPropagation();
         this.obj.activeFilterField = f;
+        
         const modal = this.obj.container.querySelector('#filter-modal');
-        const list = this.obj.container.querySelector('#modal-list');
-        const rect = e.target.getBoundingClientRect();
+        const parentContainer = document.getElementById('global-filter-drawer').parentNode;
+
+        modal.style.position = 'absolute';
         modal.style.display = 'block';
-        modal.style.top = (rect.bottom + window.scrollY) + 'px';
-        modal.style.left = rect.left + 'px';
+        modal.style.zIndex = '1002';
+
+        if (isGlobal) {
+            modal.style.top = '60px';
+            modal.style.left = '285px';
+        } else {
+            const containerRect = parentContainer.getBoundingClientRect();
+            const targetRect = e.target.getBoundingClientRect();
+            
+            modal.style.top = (targetRect.bottom - containerRect.top) + 'px';
+            modal.style.left = (targetRect.left - containerRect.left) + 'px';
+        }
         this.obj.container.querySelector('#modal-title').textContent = `Filter: ${f}`;
         const uniqueVals = [...new Set(this.obj.dataset.map(item => item[f]))];
         list.innerHTML = uniqueVals.map(v => `
@@ -92,14 +108,25 @@ export class PivotTableController extends BaseController {
         container.appendChild(fragment);
     }
 
-    buildTree(sel, fltrs, showAllRows = false) {
-
+    buildTree(sel, fltrs, showAllRows = false, customGlobalFilters = {}) {
         const root = { children: {}, values: {}, label: 'Grand Total', depth: -1 };
         const allCols = new Set();
         
         const effectiveRows = showAllRows ? [...sel.rows, '__rowId'] : sel.rows;
+        const globalFilterKeys = Object.keys(customGlobalFilters);
 
         this.obj.dataset.forEach(item => {
+
+            // 1. Global Filter Check
+            for (let i = 0; i < globalFilterKeys.length; i++) {
+                const f = globalFilterKeys[i];
+                const allowedValues = customGlobalFilters[f];
+                
+                if (allowedValues && allowedValues.length > 0) {
+                    if (!allowedValues.includes(item[f])) return;
+                }
+            }
+
             if ([...sel.rows, ...sel.cols].some(f => !fltrs[f]?.includes(item[f]))) return;
             
             if (this.searchQuery) {
@@ -114,31 +141,42 @@ export class PivotTableController extends BaseController {
 
             const cKey = sel.cols.length > 0 ? sel.cols.map(f => item[f]).join(' | ') : "Value";
             allCols.add(cKey);
+
             const update = (node, key) => {
                 sel.vals.forEach(v => {
                     const k = `${key}_${v.field}`;
                     if (!node.values[k]) node.values[k] = { sum: 0, count: 0, max: -Infinity };
                     const calc = this.obj.calculatedFields.find(c => c.name === v.field);
-                    const val = calc ? this.obj.evalFormula(item, calc.formula) : item[v.field];
-                    node.values[k].sum += val; node.values[k].count += 1;
+                    let val = calc ? this.obj.evalFormula(item, calc.formula) : item[v.field];
+                    val = Number(isNaN(val) ? 0 : val);
+                    node.values[k].sum += val; 
+                    node.values[k].count += 1;
                     node.values[k].max = Math.max(node.values[k].max, val);
                 });
             };
-            update(root, cKey); update(root, 'TOTAL');
+
+            update(root, cKey); 
+            update(root, 'TOTAL');
+
             let curr = root;
             effectiveRows.forEach((f, i) => {
-                const val = item[f];
-                if (!curr.children[val]) curr.children[val] = { children: {}, values: {}, depth: i };
-                curr = curr.children[val]; update(curr, cKey); update(curr, 'TOTAL');
+                const rowVal = item[f];
+                if (!curr.children[rowVal]) 
+                    curr.children[rowVal] = { children: {}, values: {}, depth: i };
+                curr = curr.children[rowVal]; 
+                update(curr, cKey); 
+                update(curr, 'TOTAL');
             });
         });
+
         return { root, cols: Array.from(allCols).sort() };
     }
 
     getTableHTML(root, cols, sel, heatmapOn) {
         const buffer = [];
         const stats = {};
-
+        console.log(`THIS IS THE SELS: `, sel);
+        
         if (heatmapOn) {
             const scan = (n) => {
                 cols.forEach(c => sel.vals.forEach(v => {
@@ -215,13 +253,23 @@ export class PivotTableController extends BaseController {
         this.obj.expandedPaths.has(p) ? this.obj.expandedPaths.delete(p) : this.obj.expandedPaths.add(p); this.renderAll(); this.renderDashboard(); 
     }
 
-    renderDashboard(container, pivotTile) {
-        const pivot = this.renderPivotOnDashboard(pivotTile, PivotTableController.currentPivotId);
+    renderDashboard(container, pivotTile, isFetchFromDB, customGlobalFilters) {
+
+        if([container, pivotTile, isFetchFromDB].filter(itm => itm != null).length === 0){
+            Object.values(this.obj.$parent.state.savedCharts).forEach((cfg) => {
+                const pivot = this.renderPivotOnDashboard(cfg, cfg.id, false, customGlobalFilters);
+                BIController.getDashboardGrid().appendChild(pivot.tile)
+                pivot.runDataLoad();
+            });
+            return;
+        }
+
+        const pivot = this.renderPivotOnDashboard(pivotTile, PivotTableController.currentPivotId, isFetchFromDB);
         container.appendChild(pivot.tile);
         pivot.runDataLoad();
     }
 
-    renderPivotOnDashboard(cfg, i) {
+    renderPivotOnDashboard(cfg, i, isFetchFromDB, customGlobalFilters) {
         const tile = document.createElement('div'); 
         tile.className = 'dash-tile', tile.id = `pivotWrap_${Date.now()}`;
         tile.innerHTML = this.obj.parseEvents(`
@@ -236,24 +284,42 @@ export class PivotTableController extends BaseController {
             <div style="overflow:auto; flex:1; width:100%; border-top:1px solid #eee; padding-top:0px;" id="tile-${i}"></div>
         `);
 
-        const { dataset, calculatedFields } = this.obj;
+        let { dataset, calculatedFields } = this.obj;
+        //if(isFetchFromDB) dataset = BIService.getDashboardDataFromPointer(cfg.dataPointer);
         return { 
             tile, 
-            runDataLoad: () => this.obj.dashWorker.postMessage({ dataset, cfg, searchQuery: this.searchQuery, calculatedFields, tileIndex: i }) 
+            runDataLoad: () => this.obj.dashWorker.postMessage( 
+                { dataset, cfg, searchQuery: this.searchQuery, calculatedFields, tileIndex: i, isFetchFromDB, globalFilters: customGlobalFilters }
+            )
         };
     }
 
     onDashboardPivotDelete = (id, wrapId) =>
         this.obj.$parent.controller.removeFromDash(id, wrapId);
 
-    handleDashDrop(e, container) {
-        e.preventDefault(); e.currentTarget.classList.remove('drag-over');
-        if (e.dataTransfer.getData("type") === "config") {
-            const idx = e.dataTransfer.getData("pivotIndex");
-            this.obj.$parent.controller.saveDashboardTile(this.obj.$parent.state.savedCharts[idx]);
-            this.renderDashboard(container, this.obj.$parent.state.savedCharts[idx]);
+    handleDashDrop(e, container, chart, isFetchFromDB) {
+        let configType, idx, chartInstance;
+        if(e){
+            e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+            configType = e.dataTransfer.getData("type");
+            idx = e.dataTransfer.getData("pivotIndex");
+            chartInstance = this.obj.$parent.state.savedCharts[idx];
+        }else if(chart){
+            configType = 'config';
+            chartInstance = chart;
+            idx = chart.id;
+        }
+
+        if (configType === 'config') {
+            
+            // In case the Pivot is being rendered from saved condifuration 
+            // then it want save memoize again, hence the validation
+            if(!chart) this.obj.$parent.controller.saveDashboardTile(chartInstance);
+
+            this.renderDashboard(container, chartInstance, isFetchFromDB);
             return idx;
         }
+
     }
 
     addCalculatedField() {
@@ -267,7 +333,7 @@ export class PivotTableController extends BaseController {
         const fieldList = this.obj.$parent.popup.querySelector('#source-fields');
         fieldList.innerHTML = '';
         
-        [...this.obj.baseFields, ...this.obj.calculatedFields.map(cf => cf.name)].forEach(f => {
+        [...BIService.pivotBaseFields, ...this.obj.calculatedFields.map(cf => cf.name)].forEach(f => {
             const div = document.createElement('div');
             div.className = 'field-item' + (this.obj.calculatedFields.find(c => c.name === f) ? ' calc-field' : '');
             div.textContent = f; div.draggable = true; div.style.marginBottom = "8px";
@@ -308,20 +374,37 @@ export class PivotTableController extends BaseController {
         }, 250);
     }
 
-    saveConfiguration() {
-		const { selection, filters } = this.obj;
+    async saveConfiguration() {
+		let { selection: originalSelection, filters: originalFilters } = this.obj;
         const heatmap = this.obj.container.querySelector('#heatmap-check').checked;
         const showAllRows = this.obj.container.querySelector('#show-all-rows-check').checked;
-        if (!selection.rows.length || !selection.vals.length) return alert("Empty Layout");
+        if (!originalSelection.rows.length || !originalSelection.vals.length) return alert("Empty Layout");
         const name = prompt("Name your layout:");
+        const parent = this.obj.$parent;
         if (name) {
-            this.obj.$parent.state.savedCharts['pivot-'+PivotTableController.totalSavePivot] = {
-                name, heatmap, showAllRows, selection: JSON.parse(JSON.stringify(selection)), filters: JSON.parse(JSON.stringify(filters)), 
-                type: 'pivotTable', id: PivotTableController.totalSavePivot
+            // When saving the pivot table config, it cleans all the existing 
+            // fields (from the datasource) value to empty array
+            const filters = Object.keys(JSON.parse(JSON.stringify(originalFilters))).map(field => ({ [field]: [] }));
+            
+            // Creates a copy of the data not to mess with 
+            // the data being displayed in the Pivot
+            const selection = JSON.parse(JSON.stringify(originalSelection));
+
+            parent.state.savedCharts['pivot-'+PivotTableController.totalSavePivot] = {
+                name, heatmap, showAllRows, selection, filters, 
+                type: 'pivotTable', id: PivotTableController.totalSavePivot, viewingTables: [...parent.controller.viewingTables],
+                dataSource: parent.state.pipeline, title: name
             }
-            PivotTableController.totalSavePivot++;
+
+            await parent.controller.saveChartConfig(parent.state.savedCharts['pivot-'+PivotTableController.totalSavePivot]);
+            
+            // Reinstate the original filters and selections for the frontend cached Pivot
+            parent.state.savedCharts['pivot-'+PivotTableController.totalSavePivot].filters = originalFilters;
+            parent.state.savedCharts['pivot-'+PivotTableController.totalSavePivot].selection = originalSelection;
+
+            PivotTableController.totalSavePivot = Date.now() + Math.random().toString().slice(2);
             this.initSidebar();
-        }
+        }        
     }
 
 }

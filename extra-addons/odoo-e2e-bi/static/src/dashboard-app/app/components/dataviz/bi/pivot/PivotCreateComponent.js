@@ -1,6 +1,7 @@
 import { sleepForSec } from "../../../../../@still/component/manager/timer.js";
 import { ViewComponent } from "../../../../../@still/component/super/ViewComponent.js";
 import { PivotTableController } from "../../../../controller/PivotTableController.js";
+import { BIService } from "../../../../services/BIService.js";
 import { BIUserInterfaceComponent } from "../main/BIUserInterfaceComponent.js";
 
 export class PivotCreateComponent extends ViewComponent {
@@ -11,27 +12,7 @@ export class PivotCreateComponent extends ViewComponent {
 
     /** @Prop */ dataset = [];
     
-    /** @Prop */ depts = ["Sales", "Engineering", "HR", "Marketing", "Finance", "Legal", "Ops", "CS"];
-    /** @Prop */ regions = ["North America", "EMEA", "APAC", "LATAM"];
-    /** @Prop */ levels = ["Junior", "Mid-Level", "Senior", "Lead", "Principal", "Director"];
-    /** @Prop */ genders = ["F", "M", "Non-Binary", "Other"];
-    /** @Prop */ contractTypes = ["Full-Time", "Part-Time", "Contractor", "Freelance"];
-    /** @Prop */ officeTypes = ["Remote", "Hybrid", "Onsite"];
-    
-    /** @Prop */ projStatus = ["Active", "On Hold", "Completed", "Backlog"];
-    /** @Prop */ payTerms = ["Net 30", "Net 60", "Due on Receipt"];
-    /** @Prop */ laptopTypes = ["MacBook Pro", "Dell XPS", "ThinkPad", "HP Elite"];
-    /** @Prop */ shiftTypes = ["Day", "Night", "Flexible"];
-    /** @Prop */ certs = ["None", "AWS Certified", "PMP", "Azure Dev"];
-    /** @Prop */ performance = ["Exceeds", "Meets", "Below", "N/A"];
-
-	/** @Prop */ baseFields = [
-        'Dept', 'Level', 'Region', 'Gender', 'Contract', 'Office', 
-        'ProjStatus', 'PayTerms', 'Laptop', 'Shift', 'Cert', 'PerfRating',
-        'Rating', 'Years', 'Salary', 'Bonus', 'Overhead', 'Efficiency%', 
-        'Util%', 'TeamSize', 'Commute_KM', 'Tax_Est', 'Insurance', 
-        '401k_Contrib', 'Equity_Units', 'Satisfaction'
-    ];
+	/** @Prop */ baseFields = [];
 
     /** @Prop */ selection = { rows: [], cols: [], vals: [] };
     /** @Prop */ filters = {};
@@ -43,6 +24,8 @@ export class PivotCreateComponent extends ViewComponent {
     /** @Prop */ modes = ['sum', 'avg', 'count', 'max'];
 
 	/** @Prop @type { HTMLElement } */container;
+
+	/** @Prop */loadedData;
 
 	/** 
 	 * @Controller 
@@ -58,51 +41,45 @@ export class PivotCreateComponent extends ViewComponent {
 			this.dashWorker =  new Worker('/app/components/dataviz/bi/pivot/worker.js');
 			this.container = document.getElementsByClassName('bi-pivot-ui-container')[0];
 			this.getData();
-			this.controller.initSidebar();
+            this.setData();
 			this.controller.renderAll();
 			this.setWorkerListiner();
 		});
 	}
 
+    setData = (data) => {
+        if(data) this.loadedData = data;
+        if(this.loadedData){
+            if(data[0]) BIService.pivotBaseFields = Object.keys(this.loadedData[0]);
+        }
+        this.dataset = data;
+        this.controller.initSidebar();
+        this.$parent.filterUtil.initDrawerPicker();
+    }
+
 	getData(){
 
+        /*
 		for (let i = 0; i < 50000; i++) {
-			const level = this.levels[i % this.levels.length];
-			const dept = this.depts[i % this.depts.length];
-			const levelMultiplier = (this.levels.indexOf(level) + 1) * 22000;
-			const randomVariation = Math.floor(Math.random() * 15000);
-			const salary = 35000 + levelMultiplier + randomVariation;			
-
-			this.dataset.push({ 
-				'__rowId': i + 1,
-				'Dept': dept, 
-				'Level': level, 
-				'Region': this.regions[i % this.regions.length],
-				'Gender': this.genders[i % this.genders.length],
-				'Contract': this.contractTypes[i % this.contractTypes.length],
-				'Office': this.officeTypes[i % this.officeTypes.length],
-				'ProjStatus': this.projStatus[i % this.projStatus.length],
-				'PayTerms': this.payTerms[i % this.payTerms.length],
-				'Laptop': this.laptopTypes[i % this.laptopTypes.length],
-				'Shift': this.shiftTypes[i % this.shiftTypes.length],
-				'Cert': this.certs[i % this.certs.length],
-				'PerfRating': this.performance[i % this.performance.length],
-				'Rating': Math.floor(Math.random() * 5) + 1,
-				'Years': Math.floor(Math.random() * 20) + 1,
-				'Salary': salary, 
-				'Bonus': Math.floor(salary * (Math.random() * 0.18)),
-				'Overhead': Math.floor(Math.random() * 5000) + 2000,
-				'Efficiency%': 60 + Math.floor(Math.random() * 40),
-				'Util%': 50 + Math.floor(Math.random() * 50),
-				'TeamSize': 2 + Math.floor(Math.random() * 12),
-				'Commute_KM': this.officeTypes[i % 3] === "Remote" ? 0 : Math.floor(Math.random() * 45),
-				'Tax_Est': Math.floor(salary * 0.22),
-				'Insurance': 450 + Math.floor(Math.random() * 300),
-				'401k_Contrib': Math.floor(salary * 0.05),
-				'Equity_Units': (this.levels.indexOf(level) > 3) ? 1000 + Math.floor(Math.random() * 5000) : 0,
-				'Satisfaction': Math.floor(Math.random() * 10) + 1
-			});
+			// this.dataset.push({ 
+			// 	'__rowId': i + 1, 'Dept': dept,   	'Level': level, 'Region': this.regions[i % this.regions.length],
+			// 	'Gender': this.genders[i % this.genders.length], 'Contract': this.contractTypes[i % this.contractTypes.length],
+			// 	'Office': this.officeTypes[i % this.officeTypes.length], 'ProjStatus': this.projStatus[i % this.projStatus.length],
+			// 	'PayTerms': this.payTerms[i % this.payTerms.length], 'Laptop': this.laptopTypes[i % this.laptopTypes.length],
+			// 	'Shift': this.shiftTypes[i % this.shiftTypes.length], 'Cert': this.certs[i % this.certs.length],
+			// 	'PerfRating': this.performance[i % this.performance.length], 'Rating': Math.floor(Math.random() * 5) + 1,
+			// 	'Years': Math.floor(Math.random() * 20) + 1, 'Salary': salary, 
+			// 	'Bonus': Math.floor(salary * (Math.random() * 0.18)), 'Overhead': Math.floor(Math.random() * 5000) + 2000,
+			// 	'Efficiency%': 60 + Math.floor(Math.random() * 40), 'Util%': 50 + Math.floor(Math.random() * 50),
+			// 	'TeamSize': 2 + Math.floor(Math.random() * 12), 'Insurance': 450 + Math.floor(Math.random() * 300),
+			// 	'Commute_KM': this.officeTypes[i % 3] === "Remote" ? 0 : Math.floor(Math.random() * 45),
+			// 	'Tax_Est': Math.floor(salary * 0.22), '401k_Contrib': Math.floor(salary * 0.05),
+			// 	'Equity_Units': (this.levels.indexOf(level) > 3) ? 1000 + Math.floor(Math.random() * 5000) : 0,
+			// 	'Satisfaction': Math.floor(Math.random() * 10) + 1
+			// });
 		}
+        this.setData(this.dataset)
+         */
 
 	}
 
@@ -131,29 +108,45 @@ export class PivotCreateComponent extends ViewComponent {
 	setWorkerListiner(){
 		const self = this;
 		this.dashWorker.onmessage = function(e) {
-			const { root, cols, tileIndex, cfg } = e.data;
-			const targetDiv = document.getElementById(`tile-${tileIndex}`);
-			const loader = document.getElementById(`loader-${tileIndex}`);
-			
-			if (targetDiv) {
+			const { root, cols, tileIndex, cfg, type, progress } = e.data;
+            
+            if (type === 'PROGRESS') {
+                console.log(`REGISTERING PROGRESS: `, progress);
+                
+                // Update your UI element here
+                //const progressBar = document.getElementById('pivot-progress-bar');
+                //const progressText = document.getElementById('pivot-progress-text');
+                
+                //if (progressBar) progressBar.style.width = `${progress}%`;
+                //if (progressText) progressText.textContent = `Processing: ${progress}%`;
 
-				const htmlString = self.controller.getTableHTML(root, cols, cfg.selection, cfg.heatmap);
-				self.controller.updateTableDOM(targetDiv, htmlString);
-				
-				if (loader) {
-					loader.style.transition = "opacity 0.3s ease";
-					loader.style.opacity = "0";
+            }else{
 
-					setTimeout(() => {
-						if (loader.parentNode) loader.remove();
-					}, 300);
-				}
-			}
+                const targetDiv = document.getElementById(`tile-${tileIndex}`);
+                const loader = document.getElementById(`loader-${tileIndex}`);
+                
+                if (targetDiv) {
+    
+                    const htmlString = self.controller.getTableHTML(root, cols, cfg.selection, cfg.heatmap);
+                    self.controller.updateTableDOM(targetDiv, htmlString);
+                    
+                    if (loader) {
+                        loader.style.transition = "opacity 0.3s ease";
+                        loader.style.opacity = "0";
+    
+                        setTimeout(() => {
+                            if (loader.parentNode) loader.remove();
+                        }, 300);
+                    }
+                }
+
+            }
+
 		};
 	}
 
     evalFormula(item, formula) {
-        let f = formula; this.baseFields.forEach(k => f = f.replace(new RegExp(k, 'g'), item[k] || 0));
+        let f = formula; BIService.pivotBaseFields.forEach(k => f = f.replace(new RegExp(k, 'g'), item[k] || 0));
         try { return eval(f); } catch { return 0; }
     }
 
@@ -204,7 +197,7 @@ export class PivotCreateComponent extends ViewComponent {
             this.expandedPaths.clear(), this.controller.searchQuery = "";
             this.container.querySelector('#global-search').value = "";
             this.container.querySelector('#show-all-rows-check').checked = false;
-            this.baseFields.forEach(f => {
+            BIService.pivotBaseFields.forEach(f => {
                 this.filters[f] = [...new Set(this.dataset.map(item => item[f]))];
             });
             this.controller.renderAll();
