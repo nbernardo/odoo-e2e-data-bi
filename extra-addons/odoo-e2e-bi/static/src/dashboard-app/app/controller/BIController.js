@@ -513,11 +513,14 @@ export class BIController extends BaseController {
 
     saveDashboardTile(chartData){
         const { state } = this.obj; 
-        if(chartData.saved !== true){
+        const isChartInDashboard = BIService.dashboardChartsMap.has(`${state.activeDash}-${chartData.id}`);
+
+        if(!isChartInDashboard){
+            if(chartData)
             if (!state.dashboards[state.activeDash]) state.dashboards[state.activeDash] = [];
             if(chartData.selection) chartData.selection.datasource = this.obj.state.pipeline;
             state.dashboards[state.activeDash].push({...chartData, instanceId: Date.now()});
-            chartData.saved = true;
+            BIService.dashboardChartsMap.add(`${state.activeDash}-${chartData.id}`);
         }
     }
 
@@ -659,6 +662,8 @@ export class BIController extends BaseController {
         document.getElementById(wrapperId).remove();
         BIController.dashboardAddedCharts.delete(index);
         this.obj.state.chartsByDashboard[this.obj.state.activeDash].delete(index);
+
+        BIService.dashboardChartsMap.delete(`${this.obj.state.activeDash}-${index}`);
 	}
 
     openPublishModal() { this.obj.popup.querySelector('#publishModal').classList.add('open'); }
