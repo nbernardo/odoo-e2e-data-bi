@@ -12,6 +12,8 @@ services:
 
   web:
     image: odoo:16.0  # Switched from 17.0 to 16.0
+    container_name: oddo
+    user: root
     depends_on:
       - db
     ports:
@@ -23,6 +25,7 @@ services:
     volumes:
       - odoo-web-data:/var/lib/odoo
       - ./extra-addons:/mnt/extra-addons
+      - ./odoo.conf:/etc/odoo/odoo.conf
 
 volumes:
   odoo-db-data:
