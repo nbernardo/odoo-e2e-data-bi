@@ -2,10 +2,11 @@ import { Assets } from "../../../../../@still/util/componentUtil.js";
 import { UUIDUtil } from "../../../../../@still/util/UUIDUtil.js";
 import { StillAppSetup } from "../../../../../config/app-setup.js";
 import { BIChatController } from "../../../../controller/BIChatController.js";
-import { BIController } from "../../../../controller/BIController.js";
-import { BIService } from "../../../../services/BIService.js";
+import { BIController } from "../../controllers/BIController.js";
+import { BIService } from "../../services/BIService.js";
 import { ModalWindowComponent } from "../../../abstract/ModalWindowComponent.js";
 import { PopupUtil } from "../../../popup-window/PopupUtil.js";
+import { DatabaseDiagram } from "../../diagram/DatabaseDiagram.js";
 import { mockDataTables, mockDepartments, mockTitles } from "../mock.js";
 import { FilterUtil } from "../pivot/FilterUtil.js";
 import { PivotCreateComponent } from "../pivot/PivotCreateComponent.js";
@@ -38,6 +39,8 @@ export class BIUserInterfaceComponent extends ModalWindowComponent {
 
 	/**  @Prop  */ showDashboardActions = false;
 
+	/**  @Prop  */ appPath = '';
+
 	/** @Prop @type { FilterUtil } */ filterUtil;
 
 	dashboardList = [{ dashboard_name: 'Main Dashboard' }];
@@ -51,18 +54,23 @@ export class BIUserInterfaceComponent extends ModalWindowComponent {
 
 	/** @Proxy @type { PivotCreateComponent } */ pivotTableProxy = null;
 
+	/** @Proxy @type { DatabaseDiagram } */ dbDiagramProxy = null;
+
 	/** @Prop */ analyticsChatStateEnum = { OPENED: 'Expanded', CLOSED: 'Minimized' };
 
 	/** 
 	 * @Controller
-	 * @Path controller/
-	 * @type { BIController }  */
+	 * @Path components/dataviz/controllers/
+	 * @type { BIController }  */ 
 	controller;
 
 	/** @Prop @type { BIChatController } */ chatController;
 
 	async stBeforeInit(){
+		
+		this.appPath = await BIService.getAppPath();
 		this.runningOnOdoo = StillAppSetup.config.get('runningOnOdoo');
+        await Assets.import({ path: `${this.appPath}/app/components/dataviz/diagram/g6.js`, type: 'js' });
 		//setTimeout(async () => {
 			let result = await BIController.getDashboardDetails();
 			
@@ -118,8 +126,7 @@ export class BIUserInterfaceComponent extends ModalWindowComponent {
 				await Assets.import({ path: 'https://cdn.jsdelivr.net/npm/chart.js', type: 'js' });
 			});
 		}
-		const appPath = await BIService.getAppPath();
-		await Assets.import({ path: `${appPath}/app/assets/css/bi-user-intercace-component.css` });		
+		await Assets.import({ path: `${this.appPath}/app/assets/css/bi-user-intercace-component.css` });		
 	}
 
   	async stAfterInit(){		
@@ -158,7 +165,9 @@ export class BIUserInterfaceComponent extends ModalWindowComponent {
 
 	setData = (dataSource) => {
 		this.gridDataSource = dataSource;
-		if(this.pivotTableProxy) this.pivotTableProxy.setData(dataSource);
+		try {
+			if(this.pivotTableProxy) this.pivotTableProxy.setData(dataSource);
+		} catch (error) {}
 		this.filterUtil.dataset = dataSource;
 		return this;
 	}
@@ -201,7 +210,7 @@ class State {
 	frozenCols = new Set(); 
 	activeInsertIndex = -1;
 	dashboards = {'Main Dashboard': [] }; 
-	activeDash = 'Main Dashboard'; 
+	activeDash = null; 
 	pendingChart = null;
 	/** @type {Array<Set>} */ 
 	chartsByDashboard = {}

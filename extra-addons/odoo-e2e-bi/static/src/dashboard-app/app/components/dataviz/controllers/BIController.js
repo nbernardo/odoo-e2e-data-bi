@@ -1,10 +1,11 @@
-import { sleepForSec } from "../../@still/component/manager/timer.js";
-import { BaseController } from "../../@still/component/super/service/BaseController.js";
-import { AppTemplate } from "../../config/app-template.js";
-import { BIUserInterfaceComponent } from "../components/dataviz/bi/main/BIUserInterfaceComponent.js";
-import { BiUiUtil } from "../components/dataviz/bi/util.js";
+import { sleepForSec } from "../../../../@still/component/manager/timer.js";
+import { BaseController } from "../../../../@still/component/super/service/BaseController.js";
+import { AppTemplate } from "../../../../config/app-template.js";
+import { BIUserInterfaceComponent } from "../bi/main/BIUserInterfaceComponent.js";
+import { BiUiUtil } from "../bi/util.js";
+import { Stepper } from "../util-components/Stepper.js";
 import { BIService } from "../services/BIService.js";
-import { AIUtil } from "../util/AIUtil.js";
+import { AIUtil } from "../../../util/AIUtil.js";
 
 export class BIController extends BaseController {
 
@@ -12,8 +13,11 @@ export class BIController extends BaseController {
     obj;
 
     static instance = null;
-
     wasUiPreviousInited = false;
+
+    /** @type { Stepper } */ dataSourceStepper = null;
+
+    /** @type { HTMLDivElement } */ dashboardContainer;
 
     constructor(){
         super();
@@ -103,7 +107,7 @@ export class BIController extends BaseController {
 
             for(const fieldName of [...this.fieldNames]) columns.push(fieldName);
 
-            await this.runAnaluticsAndRenderSheet(columns.join(','));
+            await this.runAnaliticsAndRenderSheet(columns.join(','));
             if(this.viewingTables.has(name))
                 this.obj.popup.querySelector(`.selected-fields-${name}`).textContent = 'All';
             else
@@ -112,8 +116,8 @@ export class BIController extends BaseController {
         
     }
 
-    async runAnaluticsAndRenderSheet(fields, pipeline){
-        const result = await this.sendAnalyticsRequest(fields, pipeline);
+    async runAnaliticsAndRenderSheet(fields, pipeline){
+        const result = await this.sendAnalyticsRequest(fields, pipeline, this.dataSourceRange);
         await this.obj.setData((result.result || [])).init();
         this.renderSheet();
         return result.result;
@@ -162,10 +166,33 @@ export class BIController extends BaseController {
         this.obj.popup.querySelector('#selCount').textContent = state.selectedRows.size;
     }
 
+    dataSourceRange = {};
     initInsertLogic() {
         const container = this.obj.popup.querySelector('.tableContainer');
         const line = this.obj.popup.querySelector('#colInsertLine');
         const { state } = this.obj;
+        this.dashboardContainer = this.obj.popup.querySelector('.tab-dashboard');
+        Stepper.appPath = this.obj.appPath;
+
+        if(this.dataSourceStepper === null){
+            const container = this.obj.popup.querySelector('.data-source-date-filter');
+            this.dataSourceStepper = Stepper.new(container, {isDate: true, start: null, end: null, step: 1});
+
+            this.dataSourceStepper.onColumnSelect((field) => {
+                const values = BIController.rangeFields[field];
+                this.dataSourceStepper.label = field;
+                this.dataSourceStepper.setRangeValues({ start: values?.min, end: values?.max });
+            });
+
+            this.dataSourceStepper.onRangeChange(({ max, min, field }) => {
+                this.dataSourceRange = {};
+                this.dataSourceRange[field] = { min, max };
+            });
+
+            this.dataSourceStepper.onDataRangeSelect(() => {
+                this.dataSourceStepper.totalRecords = BIController.rangeFields['row_count']['row'];
+            });
+        }
 
         container.addEventListener("mousemove", (e) => {
 
@@ -303,7 +330,11 @@ export class BIController extends BaseController {
         
         if(id === 'sheet') await this.obj.init();
         if(id === 'dashboard') this.obj.showDashboardActions = true;
-        else {
+        if(id === 'diagram') {
+            BIService.activePipeline = this.obj.state.pipeline.split('.')[1];
+            const result = await BIService.getModulesWhenOdoo();
+            this.obj.dbDiagramProxy.updateGraphData(result);            
+        } else {
             this.obj.showDashboardActions = false;
             this.obj.showDashboardActions = false;
         }
@@ -326,7 +357,7 @@ export class BIController extends BaseController {
 
 	}
 
-    showToast = (msg) => BiUiUtil.showToast(this.obj.popup.querySelector('#toast'), msg);
+    showToast = (msg, durationInSec = 3, warn = false) => BiUiUtil.showToast(this.obj.popup.querySelector('#toast'), msg, { durationInSec, warn });
 
     renderChartTypeGrid() {
         const { state, CHART_TYPES, parseEvents } = this.obj;
@@ -408,8 +439,8 @@ export class BIController extends BaseController {
         if (state.chartInstance) state.chartInstance.destroy();
         const ctx = this.obj.popup.querySelector('#chartCanvas').getContext('2d');
         
-        const backgroundColor = values.map((_, i) => `hsla(${(i * 137.5) % 360}, 70%, 55%, 0.8)`);
-        const borderColor = values.map((_, i) => `hsl(${(i * 137.5) % 360}, 70%, 45%, 1)`);
+        const backgroundColor = state.chartType != 'pie' ? state.chartColor : values.map((_, i) => `hsla(${(i * 137.5) % 360}, 70%, 55%, 0.8)`);
+        const borderColor = state.chartType != 'pie' ? state.chartColor : values.map((_, i) => `hsl(${(i * 137.5) % 360}, 70%, 45%, 1)`);
 
         state.chartInstance = new Chart(ctx, {
             type: ctDef.cjsType,
@@ -424,7 +455,8 @@ export class BIController extends BaseController {
                 responsive: true,
                 maintainAspectRatio: false,
                 indexAxis: state.chartType === 'horizontalBar' ? 'y' : 'x',
-                plugins: { legend: { display: ['pie', 'doughnut'].includes(state.chartType) } }
+                legend: { display: ['pie', 'doughnut'].includes(state.chartType) },
+                datalabels: { anchor: 'end', align: 'end', offset: 10, clip: false }
             }
         });
 
@@ -485,7 +517,8 @@ export class BIController extends BaseController {
             this.wasUiPreviousInited = true;
             const grid = this.obj.popup.querySelector('.dashGrid');
             
-            grid.addEventListener('dragover', e => { 
+            grid.addEventListener('dragover', e => {
+                if(this.obj.state.activeDash === null) return;
                 e.preventDefault();  grid.classList.add('drag-over'); 
                 this.isDraggingDashboardObject = true;
             });
@@ -493,6 +526,9 @@ export class BIController extends BaseController {
             grid.addEventListener('dragleave', () => grid.classList.remove('drag-over'));
             
             grid.addEventListener('drop', e => {
+                if(this.obj.state.activeDash === null){
+                    return this.showToast('Chart was not added as no dashoboard is active', 5, true);
+                }
                 e.preventDefault();
                 
                 grid.classList.remove('drag-over');
@@ -527,9 +563,20 @@ export class BIController extends BaseController {
     /** @returns { HTMLElement } */
     static getDashboardGrid = () => BIController.get().obj.popup.querySelector('.dashGrid');
 
+    addLoadingOnContainer = (container, message) => {
+        const loader = this.dataProcessLoading(message);
+        container.insertAdjacentHTML('beforeend', loader);
+    }
+
+    removeLoadingFromContainer = (container) => {
+        if(container.lastElementChild.classList.contains('loading-the-data-processing'))
+            container.lastElementChild.remove();
+    } 
 
     static dashboardAddedCharts = new Set();
     async loadDashboard(name, isPivot, event, isDashboardChange = false) {
+
+        if(isDashboardChange) this.addLoadingOnContainer(this.dashboardContainer, 'Loading dashboard')
 
         if(this.obj.state.activeDash == name && !this.isDraggingDashboardObject) return;
         if(!this.obj.state.chartsByDashboard[name]) this.obj.state.chartsByDashboard[name] = new Set();
@@ -540,7 +587,7 @@ export class BIController extends BaseController {
         grid.classList.remove('empty-dashboard');
         grid.querySelectorAll('.dash-empty').forEach(el => el.remove());
 
-        const { charts, dataSources, importedDash } = this.extractDashboardDetailes(name);
+        const { charts, dataSources, importedDash } = this.extractDashboardDetailes(name, isDashboardChange);
 
         if ((charts || []).length === 0) {
             grid.classList.add('empty-dashboard');
@@ -573,13 +620,20 @@ export class BIController extends BaseController {
                 type: c.config.cjsType,
                 data: {
                     labels: c.config.labels,
-                    datasets: [{ data: c.config.values, backgroundColor: c.backgroundColor, borderColor: c.borderColor, borderWidth: 1 }]
+                    datasets: [{
+                        data: c.config.values, backgroundColor: c.backgroundColor, borderColor: c.borderColor, borderWidth: 1, label: c.config.yLabel 
+                    }]
                 },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    datalabels: { anchor: 'end', align: 'end', offset: 10, clip: false }
+                }
             });
             this.obj.state.chartsByDashboard[name].add(c.id);
         });
-        this.isDraggingDashboardObject = false;       
+        this.isDraggingDashboardObject = false;
+        this.removeLoadingFromContainer(this.dashboardContainer);
     }
 
     addPivotToDashboard(event, grid, name, chart, isFetchFromDB){
@@ -618,17 +672,19 @@ export class BIController extends BaseController {
     }
 
 
-    extractDashboardDetailes(name){
+    extractDashboardDetailes(name, isDashboardChange){
 
         const dashboard = this.obj.state.dashboards[name];
-        
-        let [importedDash, dataSources, charts] = [false, {}, dashboard];
-        if((dashboard || []).length){
-            if(dashboard[0] == 'imported'){
+        let isFirstElementChart = Object.prototype.toString.call(dashboard[0]) === '[object Object]';
+        const isImport = true; //TODO: Offload implementation - Initialize with false, and keep as is if data was previously loaded. But data will be offloaded to indexDB
+        let [importedDash, dataSources, charts] = [(isImport && !isFirstElementChart), {}, dashboard];
+
+        if((dashboard || []).length && isDashboardChange && !isFirstElementChart){
+            //if(dashboard[0] == 'imported'){
                 [importedDash, dataSources, charts] = [true, dashboard[1], dashboard.slice(2)];
-                this.obj.state.dashboards[name] = dashboard.slice(2);
+                //this.obj.state.dashboards[name] = dashboard.slice(2);
                 return { importedDash, dataSources, charts }
-            }
+            //}
         }
         return { importedDash, dataSources, charts };
     }
@@ -695,23 +751,27 @@ export class BIController extends BaseController {
     }
 
     static currentTableList = [];
+    static rangeFields;
 
 	async onPipelineChange(val) {
         this.obj.popup.querySelector('.tableList').innerHTML = this.dataProcessLoading('Loading data tables');
         this.obj.state.pipeline = val;
         let tablesByContext = await BIController.getDomainPipelineFields(val);
-        BIController.currentTableList = Object.entries(tablesByContext).map(([name, cols]) => ({ name, cols, totalCols: cols.length }));
+        
+        BIController.rangeFields = tablesByContext.rangeFieldsData;
+
+        BIController.currentTableList = Object.entries(tablesByContext.allFields).map(([name, cols]) => ({ name, cols, totalCols: cols.length }));
         this.obj.state.activeTable = BIController.currentTableList[0].name;
         this.renderTableList();
-        this.viewingTables.clear();
+        this.dataSourceStepper.updateTablesList(BIController.currentTableList);
+        this.dataSourceStepper.initStepper(null, {isDate: false, start: 1, end: BIController.rangeFields?.row_count?.row || 1, step: 1})
+        //this.viewingTables.clear(); //TODO: Offload implementation
 	}
 
     async loadSavedChart(id) {
 
         const { state } = this.obj;
-        
-        console.log('THE SAVED CHARTS ARE: ', state.savedCharts);
-        
+                
         const c = state.savedCharts['chart-'+id+'n'];
         if (!c) return;
 
@@ -727,8 +787,8 @@ export class BIController extends BaseController {
             const fields = this.genDuckDBFieldNames(viewingTables);
             await this.runAnaluticsAndRenderSheet(fields, dataSource);
             await sleepForSec(1000);
-            delete c.imported;
-            loader.hideLoading();
+            //delete c.imported; //TODO: Offload implementation
+            loader.hideLoading();            
         }
 
         this.obj.popup.querySelector('#xAxisSelect').value = xCol;
@@ -848,7 +908,10 @@ export class BIController extends BaseController {
     sendDataQueryAgentMessage = async(message) => BIService.sendDataQueryAgentMessage(message);
 
     /** @returns { { result: { result } } } */
-    sendAnalyticsRequest = async (fields, pipeline) => BIService.sendAnalyticsRequest(fields, pipeline || this.obj.state.pipeline);
+    sendAnalyticsRequest = async (fields, pipeline, dataRange) => BIService.sendAnalyticsRequest(fields, pipeline || this.obj.state.pipeline, dataRange);
+
+    /** @returns { { result: { result } } } */
+    getAnalyticsRangeFields = async (fields, pipeline) => BIService.getAnalyticsRangeFields(fields, pipeline || this.obj.state.pipeline);
 
     static getDashboardDetails = async () => BIService.getDashboardDetails();
     static getDomainPipelineFields = async (pipeline) => BIService.getDomainPipelineFields(pipeline)
@@ -864,7 +927,7 @@ export class BIController extends BaseController {
 
     dataProcessLoading(message){
         return `
-            <div class="lab-loader">
+            <div class="lab-loader loading-the-data-processing">
                 <div class="analytics-dataload-spinner"></div>
                 <div style="margin-left:10px; font-weight:bold; color:var(--spinner-top);">${message || 'Recalculating rows'}...</div>
             </div>

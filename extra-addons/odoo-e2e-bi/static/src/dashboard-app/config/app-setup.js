@@ -7,7 +7,7 @@ export class StillAppSetup extends StillAppMixin(Components) {
 
     constructor() {
         super();
-        this.setHomeComponent(HomeComponent);
+        this.setHomeComponent(HomeComponent);       
     }
 
     async init() {

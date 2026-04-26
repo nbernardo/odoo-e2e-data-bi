@@ -1,6 +1,6 @@
 <style>
 	.bi-pivot-ui-container{
-		--primary: #2563eb; --bg: #f8fafc; --border: #e2e8f0; --success: #10b981;
+		--bg: #f8fafc; --border: #e2e8f0; --success: #10b981;
 		/* Loading Overlay Styles */
 		#table-canvas { position: relative; min-height: 200px; }
   
@@ -23,7 +23,7 @@
 		  .action-btn { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 3px; cursor: pointer; font-size: 12px; }
   
 		  .drop-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
-		  .zone { background: white; border: 2px dashed #cbd5e1; border-radius: 10px; padding: 12px; min-height: 80px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
+		  .zone { background: white; border: 1.5px dashed #cbd5e1; border-radius: 10px; padding: 12px; min-height: 80px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
 		  .zone.drag-over { border-color: var(--primary); background: #f0f9ff; }
 		  .zone-title { width: 100%; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
 		  
@@ -38,7 +38,6 @@
 		  th { background: #f1f5f9; position: sticky; top: 0; z-index: 10; font-weight: 600; }
 		  
 		  .row-label-cell { text-align: left; background: #f8fafc; font-weight: 600; min-width: 180px; }
-		  .toggle-btn { cursor: pointer; margin-right: 8px; font-weight: bold; color: var(--primary); border: 1px solid var(--primary); padding: 0 4px; border-radius: 3px; background: #fff; display: inline-block; min-width: 14px; text-align: center; }
 		  .grand-total-row { background: #f1f5f9 !important; font-weight: 800 !important; }
 		  .total-col { background: #f8fafc; font-weight: 700; border-left: 2px solid var(--border); }
   

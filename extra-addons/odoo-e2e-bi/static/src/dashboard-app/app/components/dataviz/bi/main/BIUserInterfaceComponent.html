@@ -9,6 +9,7 @@
 	.this-is-the-bi-view { .topbar { height: 67px; } .sidebar { height: 90.8vh; margin-top: 14px; } }
 	.minimize-analytics-log { right: 20px; margin-top: -49px; }
 	.this-is-the-bi-view .gragable-field-list { height: 280px; }
+	#global-filter-drawer { height: 100%; }
 
 	/** Dot Mini Loader */
 	.mini-loader-container { width: 13px; height: 13px; display: flex; align-items: center; justify-content: center; gap: 2px; }
@@ -24,6 +25,7 @@
 <style>
 	.minimize-analytics-log { right: 13px; margin-top: 2px; }
 	.this-is-the-bi-view {  .popup-mov-window{ width: 115%; } .chart-builder { height: 64vh; }  .tableContainer { height: 59vh; } }
+	#global-filter-drawer { height: 94.7%; }
 </style>
 @endif
 <div class="window-popup-mov-window this-is-the-bi-view" (showIf)="self.showWindowPopup">
@@ -66,7 +68,7 @@
 
 					<button class="drawer-toggle" onclick="controller.toggleFilterDrawer()">⚙️</button>
     
-					<div class="global-filter-drawer-wrap" style="overflow: hidden; position: absolute; height: 94.7%; width: 280px; z-index: -1;">
+					<div class="global-filter-drawer-wrap" style="overflow: hidden; position: absolute; height: 100%; width: 280px; z-index: -1;">
 						<div id="global-filter-drawer">
 							<div class="drawer-header" style="padding:15px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
 								<h3 style="margin:0;">Global Filters</h3>
@@ -105,7 +107,7 @@
 							<div style="display: flex; flex-direction: column; gap: 7px;">
 								<!-- <div class="logo"><div class="logo-dot"></div>DataViz</div>
 								<div class="topbar-divider"></div> -->
-								<div style="font-weight: bold; font-size: 12px;">Context: </div>
+								<div style="font-weight: bold; font-size: 12px;">Modelo: </div>
 								<select class="pipeline-selector" (forEach)="domainPipelinesList" onchange="controller.onPipelineChange(this.value)">
 									<option each="item" value="{item.pipeline}">{item.name}</option>
 								</select>
@@ -159,10 +161,11 @@
 
 						<main class="main">
 							<nav class="tabs">
-								<div class="tab active" onclick="controller.switchTab('sheet',this)">Spreadsheet</div>
-								<div class="tab" onclick="controller.switchTab('chart',this)">Chart Builder</div>
-								<div class="tab" onclick="controller.switchTab('pivot',this)">Pivot</div>
-								<div class="tab" onclick="controller.switchTab('dashboard',this)">Dashboard</div>
+								<div class="tab" onclick="controller.switchTab('diagram',this)"><img src="@appPath/app/assets/imgs/database_.png" style="width: 14px;"> &nbsp;Diagram</div>
+								<div class="tab active" onclick="controller.switchTab('sheet',this)"><img src="@appPath/app/assets/imgs/database_.png" style="width: 14px;"> &nbsp;Data</div>
+								<div class="tab" onclick="controller.switchTab('chart',this)"><img src="@appPath/app/assets/imgs/pie-chart.png" style="width: 15px;"> &nbsp;Chart Builder</div>
+								<div class="tab" onclick="controller.switchTab('pivot',this)"><img src="@appPath/app/assets/imgs/pivot.png" style="width: 19px;"> &nbsp;Pivot</div>
+								<div class="tab" onclick="controller.switchTab('dashboard',this)"><img src="@appPath/app/assets/imgs/dashboard.png" style="width: 21px;"> &nbsp;Dashboard</div>
 								<span (showIf)="self.showDashboardActions">
 									<span style="display: flex; display: flex; position: absolute; right: 32px; gap: 7px; width: 380px; margin-top: -14px; justify-content: flex-end;">									
 										<button class="btn btn-accent" style="justify-content: center; width: 250px; display: none;" id="btnPublish"  onclick="controller.openPublishModal()">
@@ -178,15 +181,17 @@
 							<div class="content active tab-sheet">
 								<div class="sheet-toolbar">
 									<div class="search-wrap"><input class="search-input" id="searchInput" placeholder="Search..." oninput="controller.filterRows(this.value)"></div>
-									<select class="field-select" style="width:auto" id="colFilter" onchange="controller.filterRows(document.getElementById('searchInput').value)"><option value="">All columns</option></select>
-									<button class="btn btn-ghost" onclick="controller.addColumn()" style="width: 94px;">+ Add Col</button>
-									<div class="topbar-actions" style="width: 301px;padding-left: 8px;">
+									<select class="field-select" style="width:auto; width: 180px;" id="colFilter" onchange="controller.filterRows(document.getElementById('searchInput').value)"><option value="">All columns</option></select>
+									<!-- <button class="btn btn-ghost" onclick="controller.addColumn()" style="width: 94px;">+ Add Col</button> -->
+									<div class="topbar-actions" style="width: 140px;padding-left: 8px;">
 										<button class="btn btn-ghost" style="width: 115px;" onclick="controller.exportCSV()">↓ Export CSV</button>
 									</div>
-									<div class="stats-row">
-									<div class="stat-chip">Rows: <span id="rowCount">0</span></div>
-									<div class="stat-chip">Cols: <span id="colCount">0</span></div>
-									<div class="stat-chip">Selected: <span id="selCount">0</span></div>
+									<div class="data-source-date-filter"></div>
+									<div class="stats-row" style="margin-right: 2px;">
+										<div class="stat-chip">Rows: <span id="rowCount">0</span></div>
+										<div class="stat-chip">Cols: <span id="colCount">0</span></div>
+										<div class="stat-chip">Selected: <span id="selCount">0</span>
+									</div>
 								</div>
 							</div>
 							<div class="table-wrap tableContainer">
@@ -248,7 +253,11 @@
 							</div>
 
 							<div class="content tab-pivot">
-								<st-element component="PivotCreateComponent" proxy="pivotTableProxy" @delayed="2.1s"></st-element>
+								<st-element component="PivotCreateComponent" proxy="pivotTableProxy" @delayed="2.5s"></st-element>
+							</div>
+							
+							<div class="content tab-diagram">
+								<st-element component="DatabaseDiagram" proxy="dbDiagramProxy" @delayed="2.1s"></st-element>
 							</div>
 
 							<div class="content tab-dashboard">
