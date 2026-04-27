@@ -25,7 +25,11 @@ export const stillRoutesMap = {
             DatabaseDiagram: {
                 path: "app/components/dataviz/diagram",
                 url: "/database-diagram"
-            }
+            },
+            Grid: {
+                path: "app/components/dataviz/bi/grid",
+                url: "/grid"
+            },
         },
         lazyInitial: {}
     }

@@ -1,15 +1,28 @@
 import { BaseController } from "../../../../@still/component/super/service/BaseController.js";
+import { Assets } from "../../../../@still/util/componentUtil.js";
+import { Grid } from "../bi/grid/Grid.js";
 import { DatabaseDiagram } from "../diagram/DatabaseDiagram.js";
+import { BIService } from "../services/BIService.js";
+import { BIController } from "./BIController.js";
 
 export class DBDiagramController extends BaseController {
     
     /** @type { DatabaseDiagram } */
     obj;
 
+    editor;
+
+    selectedConnection;
+
     /** @type { Map<string, number> } */
     selectedTablesMap = new Map(); // table_name -> orderNumber
 
     relationRegistry = new Map(); 
+
+    /** @returns { DBDiagramController } */
+    static fromContext = () => DBDiagramController.get();
+
+    /** @type { Grid } */ datagridInstance;
 
     handleTableSelect(tableName) {
         if (this.selectedTablesMap.has(tableName)) {
@@ -60,19 +73,16 @@ export class DBDiagramController extends BaseController {
 
     toggleView(view) {
         const diagramEl = this.obj.container.querySelector('#mountNode');
-        const editorEl = this.obj.container.querySelector('#sqlEditor');
         const btnDiagram = this.obj.container.querySelector('#btnDiagram');
         const btnSQL = this.obj.container.querySelector('#btnSQL');
 
         if (view === 'diagram') {
-            diagramEl.style.display = 'block';
-            editorEl.style.display = 'none';
+            this.obj.showDiagram = true;
             btnDiagram.classList.add('active');
             btnSQL.classList.remove('active');
             if (this.obj.graph) this.obj.graph.changeSize(diagramEl.scrollWidth, diagramEl.scrollHeight);
         } else {
-            diagramEl.style.display = 'none';
-            editorEl.style.display = 'block';
+            this.obj.showDiagram = false;
             btnDiagram.classList.remove('active');
             btnSQL.classList.add('active');
             this.syncSqlEditor();
@@ -80,12 +90,10 @@ export class DBDiagramController extends BaseController {
     }
 
     syncSqlEditor() {
-        const textarea = this.obj.container.querySelector('#sqlTextarea');
-        if (!textarea) return;
 
         const selectedEntries = Array.from(this.selectedTablesMap.entries());
         if (selectedEntries.length === 0) {
-            textarea.value = `-- e2e-Data Query Builder\n-- Select tables in the diagram to auto-generate JOINs.`;
+            this.editor.setValue(`-- Write your query here. \n-- Or Add/Select tables in the diagram to the query.`);
             return;
         }
 
@@ -116,12 +124,14 @@ export class DBDiagramController extends BaseController {
         });
 
         const fromClause = [baseTable, ...crossJoins].join(', ');
-        textarea.value = [
-            `-- Auto-generated Business Query`,
-            `SELECT *`,
-            `FROM ${fromClause}`,
-            joins.length > 0 ? `    ${joins.join('\n    ')}` : ''
-        ].filter(v => v.trim()).join('\n') + ';';
+        this.editor.setValue(
+            [
+                `-- Auto-generated Business Query`,
+                `SELECT * FROM ${fromClause}`,
+                joins.length > 0 ? `    ${joins.join('\n    ')}` : '',
+                'LIMIT 100'
+            ].filter(v => v.trim()).join('\n') + ';'
+        );        
     }
 
     static initCustomDBNode() {
@@ -137,7 +147,7 @@ export class DBDiagramController extends BaseController {
                 let textColor = isRoot ? '#ffffff' : '#000000';
                 let lineWidth = isSelected ? 2 : 1;
 
-                if (isRoot) { fill = '#1d39c4'; stroke = '#002329'; } 
+                if (isRoot) { fill = '#2c3e50'; stroke = '#002329'; } 
                 else if (isExternal) { fill = '#ffffff'; stroke = '#ffa39e'; }
 
                 const keyShape = group.addShape('rect', {
@@ -208,4 +218,103 @@ export class DBDiagramController extends BaseController {
 
         return Array.from(nodeMap.values()).filter(node => node.id.split(' -> ').length === 2);
     }
+
+    async loadMonacoEditorDependencies(){
+        
+        if (window.monaco) return;
+        
+        await Assets.import({ path: 'https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js' });
+        await Assets.import({ path: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.46.0/min/vs/loader.min.js' });
+
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.46.0/min/vs' } });
+        require(['vs/editor/editor.main'], (monaco) => {
+            monaco.languages.registerCompletionItemProvider('python', {
+                provideCompletionItems: () => ({ suggestions: CodeEditorUtil.getPythonSuggestions() }),
+            });
+            window.monaco
+        });
+
+    }
+
+    async selectConnectionName(connectionName){
+        const container = this.obj.container.querySelector('#mountNode');
+        BIController.fromContext().addLoadingOnContainer(container, 'Loading database diagram');
+        const result = await BIService.getModulesWhenOdoo(connectionName);
+        this.obj.updateGraphData(result);
+        this.selectedConnection = connectionName;
+        BIController.fromContext().removeLoadingFromContainer(container);
+    }
+
+    async loadCodeEditor(){
+        if(!this.obj.$parent.runningOnOdoo)
+            this.loadMonacoEditorDependencies();
+
+        this.editor = monaco.editor.create(document.getElementById('sqlEditor'), {
+            value: this.query, language: 'sql', theme: 'vs-light', automaticLayout: true, fontSize: 14, minimap: { enabled: false }, scrollBeyondLastLine: false,
+        }); 
+        this.editor.setValue(`-- Write your query here. \n-- Or Add/Select tables in the diagram to the query.`);
+    }
+
+    async runSQLQuery(){
+        const container = this.obj.container.querySelector('.sqlDataExploratio');
+        BIController.fromContext().addLoadingOnContainer(container, 'Fetching/Processing data');
+
+        const result = await BIService.runSQLQuery(this.editor.getValue(), this.selectedConnection);
+        const fields = result.fields || [];
+        const rows = result.result;
+        
+        if(!this.datagridInstance){
+            const { template: gridUI, component: gridComponent } = await Components.new(Grid, { fields, data: rows });
+            this.datagridInstance = gridComponent;
+            this.obj.container.querySelector('.queryResultPLaceholder').innerHTML = gridUI;
+            this.datagridInstance.onLoad(() => {
+                this.datagridInstance.loadGrid();
+                BIController.fromContext().removeLoadingFromContainer(container);
+            });
+        }else{
+            this.datagridInstance.setGridData(fields, rows).loadGrid();
+            BIController.fromContext().removeLoadingFromContainer(container);
+        }
+        
+    }
+
+    setGraphOnClickEvt(graph){
+
+        graph.on('node:click', async (e) => {
+            const { item, target } = e;
+            const model = item.getModel(), shapeName = target.get('name');
+
+			if (shapeName === 'select-icon-bg' || shapeName === 'select-icon-text') {
+				this.handleTableSelect(model.label);
+				
+				const order = this.selectedTablesMap.get(model.label);
+				const isUnrelated = this.isTableUnrelated(model.label);
+
+				graph.updateItem(item, { isSelected: !!order, orderNumber: order || '', selectIconColor: isUnrelated ? '#9E9E9E' : '#4CAF50' });
+				return this.syncSqlEditor();
+			}
+
+            if (model.children && model.children.length > 0) {
+                graph.updateItem(item, { collapsed: !model.collapsed });
+                return graph.layout(); 
+            }
+
+            if (model.id.startsWith('folder:')) {
+                const moduleName = model.label; 
+                graph.updateItem(item, { label: `${moduleName} (Loading...)` });
+
+                try {
+                    const result = await BIService.getTablesWhenOdoo(moduleName.toLowerCase(), this.selectedConnection);                    
+                    const children = this.listToTree(result.tables, moduleName);
+                    setTimeout(() => this.compileRelations(result.relations));
+                    graph.updateItem(item, { label: moduleName, children: children, collapsed: false });
+                    graph.layout(); 
+                } catch (err) {
+                    console.error('Failed to load module tables:', err);
+                    graph.updateItem(item, { label: moduleName });
+                }
+            }
+        });
+
+    }    
 }
